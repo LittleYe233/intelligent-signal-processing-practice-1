@@ -9,13 +9,47 @@
 
 using namespace std;
 
+#define FFT_FREQ(N, FS, k) ((double)FS / N * static_cast<double>(k))
+
+// len: length of dft array
+// dft: should be normalized first
+template <typename T>
+static size_t estimateFreqs(const size_t len, const complex<T> *dft,
+                            size_t *indices, double *amps,
+                            const double thresholdFactor) {
+    vector<T> real_dft(len);
+    T max_real_dft = -1;
+    // Pick modulus and get maximum
+    for (size_t n = 0; n < len; ++n) {
+        real_dft[n] = abs(dft[n]);
+        if (real_dft[n] > max_real_dft) {
+            max_real_dft = real_dft[n];
+        }
+    }
+    T threshold = max_real_dft * thresholdFactor;
+    // Find peaks
+    size_t n_peaks = 0;
+    for (size_t n = 1; n < len - 1; ++n) {
+        if (real_dft[n] > real_dft[n - 1] && real_dft[n] > real_dft[n + 1]) {
+            T left = real_dft[n] - real_dft[n - 1],
+              right = real_dft[n] - real_dft[n + 1];
+            if (left >= threshold && right >= threshold) {
+                indices[n_peaks] = n;
+                amps[n_peaks] = real_dft[n];
+                ++n_peaks;
+            }
+        }
+    }
+    return n_peaks;
+}
+
 int main() {
     // Sampling frequency = 8000 Hz
     const double FS = 8000;
-    // Signal frequency = 1000 Hz
-    const double F_SIG = 1000;
+    // Signal frequency = 1250 Hz (should cause spectrum leakage)
+    const double F_SIG = 1250;
     // Number of samples
-    const size_t N = 8;
+    const size_t N = 16;
 
     // Signal: x[n]=3*sin(2*pi*f_sig*n/fs)
     vector<double> data_in(N);
@@ -44,7 +78,20 @@ int main() {
 
     std::cout << "\n--- FFT Output (Frequency Domain) ---\n";
     for (size_t k = 0; k < output_size; ++k) {
-        std::cout << "X[" << k << "]: " << data_out[k] << "\n";
+        std::cout << "X[" << k << "]: " << data_out[k]
+                  << " abs=" << abs(data_out[k])
+                  << " freq=" << FFT_FREQ(N, FS, k) << "\n";
+    }
+
+    std::cout << "\n--- Find Peaks ---\n";
+    size_t max_possible_len = N / 4;
+    vector<double> amps(max_possible_len);
+    vector<size_t> indices(max_possible_len);
+    size_t n_peaks = estimateFreqs(data_out.size(), data_out.data(),
+                                   indices.data(), amps.data(), 0.05);
+    for (size_t i = 0; i < n_peaks; ++i) {
+        cout << "Peaks[" << i << "]: " << FFT_FREQ(N, FS, indices[i])
+             << " amp=" << amps[i] << "\n";
     }
 
     return 0;
