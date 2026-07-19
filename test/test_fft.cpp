@@ -9,7 +9,15 @@
 
 using namespace std;
 
-#define FFT_FREQ(N, FS, k) ((double)FS / N * static_cast<double>(k))
+/// Calculates FFT spectrum resolution.
+constexpr double FFT_REZ(double fs, size_t n) {
+    return fs / static_cast<double>(n);
+}
+
+/// Calculates frequency (Hz) of one specific slot of FFT spectrum.
+constexpr double FFT_FREQ(double rez, size_t k) {
+    return rez * static_cast<double>(k);
+}
 
 // len: length of dft array
 // dft: should be normalized first
@@ -50,6 +58,8 @@ int main() {
     const double F_SIG = 1250;
     // Number of samples
     const size_t N = 16;
+    // FFT resolution
+    const double REZ = FFT_REZ(FS, N);
 
     // Signal: x[n]=3*sin(2*pi*f_sig*n/fs)
     vector<double> data_in(N);
@@ -65,10 +75,15 @@ int main() {
     pocketfft::stride_t stride_in = {sizeof(double)};
     pocketfft::stride_t stride_out = {sizeof(complex<double>)};
 
-    pocketfft::r2c(shape_in, stride_in, stride_out, (size_t)0,
-                   pocketfft::FORWARD, data_in.data(), data_out.data(),
-                   2.0 / N // normalization factor
-    );
+    try {
+        pocketfft::r2c(shape_in, stride_in, stride_out, 0, pocketfft::FORWARD,
+                       data_in.data(), data_out.data(),
+                       2.0 / N // normalization factor
+        );
+    } catch (const exception &e) {
+        std::cerr << "Fatal error when calculating FFT: " << e.what() << '\n';
+        return 1;
+    }
 
     // Output
     cout << "--- Input Signal x[n] ---\n";
@@ -79,8 +94,8 @@ int main() {
     std::cout << "\n--- FFT Output (Frequency Domain) ---\n";
     for (size_t k = 0; k < output_size; ++k) {
         std::cout << "X[" << k << "]: " << data_out[k]
-                  << " abs=" << abs(data_out[k])
-                  << " freq=" << FFT_FREQ(N, FS, k) << "\n";
+                  << " abs=" << abs(data_out[k]) << " freq=" << FFT_FREQ(REZ, k)
+                  << "\n";
     }
 
     std::cout << "\n--- Find Peaks ---\n";
@@ -90,7 +105,7 @@ int main() {
     size_t n_peaks = estimateFreqs(data_out.size(), data_out.data(),
                                    indices.data(), amps.data(), 0.05);
     for (size_t i = 0; i < n_peaks; ++i) {
-        cout << "Peaks[" << i << "]: " << FFT_FREQ(N, FS, indices[i])
+        cout << "Peaks[" << i << "]: " << FFT_FREQ(REZ, indices[i])
              << " amp=" << amps[i] << "\n";
     }
 

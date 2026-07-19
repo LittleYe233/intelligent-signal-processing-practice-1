@@ -31,7 +31,7 @@
 
 // Callback to handle GLFW errors
 static void glfwErrorCallback(int error, const char *description) {
-    std::cerr << "GLFW Error " << error << ": " << description << std::endl;
+    std::cerr << "GLFW Error " << error << ": " << description << '\n';
 }
 
 int main() {
@@ -40,7 +40,7 @@ int main() {
 
     // Initialize GLFW
     if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
+        std::cerr << "Failed to initialize GLFW" << '\n';
         return -1;
     }
 
@@ -57,7 +57,7 @@ int main() {
     GLFWwindow *window =
         glfwCreateWindow(1200, 800, "ImPlot Example", nullptr, nullptr);
     if (!window) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
+        std::cerr << "Failed to create GLFW window" << '\n';
         glfwTerminate();
         return -1;
     }
@@ -66,7 +66,7 @@ int main() {
 
     float xscale, yscale;
     glfwGetWindowContentScale(window, &xscale, &yscale);
-    std::cout << xscale << ' ' << yscale << std::endl;
+    std::cout << xscale << ' ' << yscale << '\n';
 
     // Setup context
     IMGUI_CHECKVERSION();
@@ -78,7 +78,7 @@ int main() {
 
     // Setup font
     ImGui::GetStyle().ScaleAllSizes(xscale);
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\msyhl.ttc");
+    ImGui::GetIO().Fonts->AddFontFromFileTTF(R"(C:\Windows\Fonts\msyh.ttc)");
 
     // Setup backend
     ImGui_ImplGlfw_InitForOpenGL(window, true);

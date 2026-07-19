@@ -32,7 +32,7 @@ Checks: >
   misc-unused-parameters,
   clang-analyzer-core.*,
   clang-analyzer-cplusplus.*,
-  -clang-analyzer-cplusplus.NewDeleteLeaks
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
   readability-identifier-naming
 
 # Configure checks to align with modern desktop application logic

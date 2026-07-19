@@ -15,6 +15,7 @@ endif()
 option(ISPP_ENABLE_NATIVE OFF)
 option(ISPP_ENABLE_X86_64_V4 OFF)
 option(ISPP_ENABLE_X86_64_V3 OFF)
+option(ISPP_WIN32_GUI "Build as windowed GUI app (no console)" OFF)
 
 # MSYS2/GCC 16 warning flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -42,6 +43,11 @@ elseif(ISPP_ENABLE_X86_64_V3)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         add_compile_options(-march=x86-64-v3 -mtune=x86-64-v3)
     endif()
+endif()
+
+# Windows specific flag: Hides the console window for GUI mode
+if(ISPP_WIN32_GUI)
+    set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -78,6 +84,9 @@ target_link_libraries(implot PUBLIC imgui)
 add_library(PocketFFT INTERFACE)
 target_include_directories(PocketFFT INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/pocketfft)
 
+add_library(Eigen INTERFACE)
+target_include_directories(Eigen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen/Eigen)
+
 # ---------------------------------------------------------------------------
 # Testing
 # ---------------------------------------------------------------------------
@@ -88,16 +97,38 @@ add_subdirectory(test)
 # Main Application Target
 # ---------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} 
+set(ISPP_SOURCES
     src/main.cpp
+    # Core
+    src/core/rng.cpp
+    # Window
+    src/window/window.cpp
+    # Signal
+    src/signal/signal_generator.cpp
+    # Estimator (M2+)
+    # src/estimator/fft_peak.cpp
+    # src/estimator/fft_interpolate.cpp
+    # src/estimator/music.cpp
+    # src/estimator/esprit.cpp
+    # Metrics (M4+)
+    # src/metrics/percentage_error.cpp
+    # src/metrics/rmse.cpp
+    # src/metrics/compute_time.cpp
+    # Experiment (M1)
+    src/experiment/statistics.cpp
+    src/experiment/experiment_runner.cpp
+    # UI (M5+)
+    # src/ui/ui_manager.cpp
+    # src/ui/panels/config_panel.cpp
+    # src/ui/panels/spectrum_panel.cpp
+    # src/ui/panels/results_panel.cpp
+    # src/ui/panels/log_panel.cpp
 )
+
+add_executable(${PROJECT_NAME} ${ISPP_SOURCES})
 
 # Setup include directories for our own code
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # # Link dependencies
-# # 'glfw' is the exported target from the glfw subfolder.
-# target_link_libraries(${PROJECT_NAME} PRIVATE glfw)
-
-# Windows specific flag: Hides the console window in the background for GUI apps
-set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
+target_link_libraries(${PROJECT_NAME} PRIVATE glfw3 OpenGL::GL imgui implot PocketFFT Eigen)
