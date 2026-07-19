@@ -1,19 +1,43 @@
+# Generated from LLM agent
+# Prompt reference:
+# What is the recommended clang tidy configuration for moden C++
+# (C++20) desktop app development (in order to use newer and better
+# features with low false-positlve rates)?
+
 FormatStyle: file
-HeaderFilterRegex: ''
 Checks: >
   -*,
   clang-diagnostic-*,
-  llvm-*,
-  misc-*,
-  -misc-const-correctness,
-  -misc-include-cleaner,
-  -misc-no-recursion,
-  -misc-non-private-member-variables-in-classes,
-  -misc-unused-parameters,
-  -misc-use-anonymous-namespace,
+  bugprone-*,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-branch-clone,
+  -bugprone-reserved-identifier,
+  performance-*,
+  -performance-no-automatic-move,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+  -modernize-avoid-c-arrays,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-pro-bounds-*,
+  -cppcoreguidelines-pro-type-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-init-variables,
+  misc-definitions-in-headers,
+  misc-misplaced-const,
+  misc-redundant-expression,
+  misc-unconventional-assign-operator,
+  misc-uniqueptr-reset-release,
+  misc-unused-parameters,
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  -clang-analyzer-cplusplus.NewDeleteLeaks
   readability-identifier-naming
 
+# Configure checks to align with modern desktop application logic
 CheckOptions:
+  # Readability check options use from LLVM project
   - key:             readability-identifier-naming.ConstantCase
     value:           UPPER_CASE
   - key:             readability-identifier-naming.ConstantParameterCase
@@ -24,8 +48,6 @@ CheckOptions:
     value:           CamelCase
   - key:             readability-identifier-naming.FunctionCase
     value:           camelBack
-  # Exclude from scanning as this is an exported symbol used for fuzzing
-  # throughout the code base.
   - key:             readability-identifier-naming.FunctionIgnoredRegexp
     value:           "LLVMFuzzerTestOneInput"
   - key:             readability-identifier-naming.MemberCase
@@ -40,5 +62,12 @@ CheckOptions:
     value:           1
   - key:             readability-redundant-member-init.IgnoreBaseInCopyConstructors
     value:           1
-  - key:             modernize-use-default-member-init.UseAssignment
-    value:           1
+  # Ensure modernize-use-auto stays practical
+  - key:             modernize-use-auto.MinTypeNameLength
+    value:           5
+  # Set the C++ standard to C++20 for modernize- checks
+  - key:             modernize-use-using.IgnoreMacros
+    value:           true
+
+# Ignore third-party and UI layout headers
+HeaderFilterRegex: '^(src|include|test)/.*'
