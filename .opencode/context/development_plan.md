@@ -159,10 +159,11 @@ struct FrequencyPeak {
     double amplitude;
 };
 
-// 估计算法统一输出（允许多个频率点）
+// 估计算法完整输出（含频率-幅度对 + 计时）。
+// Peaks 由 IEstimator 填充，ComputeTimeSec 由 ExperimentRunner 外部注入。
 struct EstimationResult {
     std::vector<FrequencyPeak> peaks;
-    double computeTimeSec;   // 仅数值计算耗时（含窗函数施加，不含 GUI）
+    double computeTimeSec;   // 由 Runner 填充：含窗函数施加 + 估计的完整耗时
 };
 
 } // namespace ispp
@@ -321,9 +322,10 @@ class IEstimator {
 public:
     virtual ~IEstimator() = default;
 
-    // 输入：实数信号幅度 + 采样率（算法内部不得依赖"真实频率"）
-    virtual EstimationResult estimate(const RealArray& input,
-                                      double sampleRate) = 0;
+    // 输入：已加窗的实数信号幅度 + 采样率（算法内部不得依赖"真实频率"）
+    // 返回频率-幅度对列表（不含计时；计时由 Runner 在外部完成）
+    virtual std::vector<FrequencyPeak> estimate(const RealArray& input,
+                                                double sampleRate) = 0;
     virtual std::string_view name() const = 0;
 };
 
@@ -337,7 +339,8 @@ public:
 class FftPeakEstimator : public IEstimator {
 public:
     /// @todo 构造可接受 maxFreqCount / 阈值等用户配置
-    EstimationResult estimate(const RealArray& input, double sampleRate) override;
+    std::vector<FrequencyPeak> estimate(const RealArray& input,
+                                        double sampleRate) override;
     std::string_view name() const override;
 };
 
@@ -348,7 +351,8 @@ class FftInterpolateEstimator : public IEstimator { /* 同上 */ };
 class MusicEstimator : public IEstimator {
 public:
     /// @todo 构造接受 maxFreqCount（用户配置）；依赖 Eigen（用户接入后实现）
-    EstimationResult estimate(const RealArray& input, double sampleRate) override;
+    std::vector<FrequencyPeak> estimate(const RealArray& input,
+                                        double sampleRate) override;
     std::string_view name() const override;
 };
 
@@ -520,8 +524,8 @@ private:
    c. RealArray input = SignalGenerator::generate(config.signal, config.env, rng);
    d. 计时开始（包含窗函数施加）
    e. applyWindow(input, config.env.window.kind);
-   f. EstimationResult er = estimator_->estimate(input, sampleRate);
-   g. 计时结束 → 写入 er.computeTimeSec
+    f. auto peaks = estimator_->estimate(input, sampleRate);
+    g. 计时结束 → 组装 EstimationResult{std::move(peaks), computeSec}
    h. for each metric: samples[m].push_back(metric->evaluate(trueFreq, er))
    i. 若 i == iterationCount - 1：缓存 lastInputSignal / lastSpectrum* / lastPeaks
    j. onProgress((i + 1) / iterationCount)

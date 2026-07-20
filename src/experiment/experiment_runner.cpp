@@ -58,13 +58,14 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
         auto compute_start = std::chrono::steady_clock::now();
         applyWindow(input, Config.Env.Window.Kind);
 
-        // --- 3. 频率估计 ---
-        EstimationResult est_result = Estimator->estimate(input, SAMPLE_RATE);
+        // --- 3. 频率估计（由 Runner 组装 EstimationResult 并注入计时） ---
+        auto peaks = Estimator->estimate(input, SAMPLE_RATE);
         auto compute_end = std::chrono::steady_clock::now();
 
         double compute_sec =
             std::chrono::duration<double>(compute_end - compute_start).count();
-        est_result.ComputeTimeSec = compute_sec;
+        EstimationResult est_result{.Peaks = std::move(peaks),
+                                    .ComputeTimeSec = compute_sec};
 
         // --- 4. 评价指标 ---
         for (std::size_t m = 0; m < Metrics.size(); ++m) {

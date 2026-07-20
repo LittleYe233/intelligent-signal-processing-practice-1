@@ -9,7 +9,8 @@
 namespace ispp {
 
 /// 频率估计算法统一接口。
-/// 输入：实数信号幅度序列 + 采样率；算法内部不得依赖"真实频率"。
+/// 输入：已加窗的实数信号幅度序列 + 采样率；算法内部不得依赖"真实频率"。
+/// 返回频率-幅度对列表（由 Runner 组装为 EstimationResult 并注入计时）。
 class IEstimator {
 public:
     IEstimator() = default;
@@ -20,8 +21,8 @@ public:
     virtual ~IEstimator() = default;
 
     /// @todo 实现：对 input 进行频率估计，返回频率-幅度对列表
-    virtual EstimationResult estimate(const RealArray &input,
-                                      double sample_rate) = 0;
+    virtual std::vector<FrequencyPeak> estimate(const RealArray &input,
+                                                double sample_rate) = 0;
 
     /// 返回算法名称（用于结果显示）
     virtual std::string_view name() const = 0;

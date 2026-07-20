@@ -1,12 +1,13 @@
 #ifndef ISPP_CORE_TYPES_H
 #define ISPP_CORE_TYPES_H
 
-#include <string_view>
+#include <complex>
 #include <vector>
 
 namespace ispp {
 
 using RealArray = std::vector<double>;
+using ComplexArray = std::vector<std::complex<double>>;
 
 struct FrequencyPeak {
     double FrequencyHz;

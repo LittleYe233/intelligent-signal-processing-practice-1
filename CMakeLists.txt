@@ -105,9 +105,9 @@ set(ISPP_SOURCES
     src/window/window.cpp
     # Signal
     src/signal/signal_generator.cpp
-    # Estimator (M2+)
-    # src/estimator/fft_peak.cpp
-    # src/estimator/fft_interpolate.cpp
+    # Estimator (M2)
+    src/estimator/fft_peak.cpp
+    src/estimator/fft_interpolate.cpp
     # src/estimator/music.cpp
     # src/estimator/esprit.cpp
     # Metrics (M4+)

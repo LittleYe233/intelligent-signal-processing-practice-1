@@ -10,12 +10,12 @@
 using namespace std;
 
 /// Calculates FFT spectrum resolution.
-constexpr double FFT_REZ(double fs, size_t n) {
+constexpr double fftRez(double fs, size_t n) {
     return fs / static_cast<double>(n);
 }
 
 /// Calculates frequency (Hz) of one specific slot of FFT spectrum.
-constexpr double FFT_FREQ(double rez, size_t k) {
+constexpr double fftFreq(double rez, size_t k) {
     return rez * static_cast<double>(k);
 }
 
@@ -59,7 +59,7 @@ int main() {
     // Number of samples
     const size_t N = 16;
     // FFT resolution
-    const double REZ = FFT_REZ(FS, N);
+    const double REZ = fftRez(FS, N);
 
     // Signal: x[n]=3*sin(2*pi*f_sig*n/fs)
     vector<double> data_in(N);
@@ -94,7 +94,7 @@ int main() {
     std::cout << "\n--- FFT Output (Frequency Domain) ---\n";
     for (size_t k = 0; k < output_size; ++k) {
         std::cout << "X[" << k << "]: " << data_out[k]
-                  << " abs=" << abs(data_out[k]) << " freq=" << FFT_FREQ(REZ, k)
+                  << " abs=" << abs(data_out[k]) << " freq=" << fftFreq(REZ, k)
                   << "\n";
     }
 
@@ -105,7 +105,7 @@ int main() {
     size_t n_peaks = estimateFreqs(data_out.size(), data_out.data(),
                                    indices.data(), amps.data(), 0.05);
     for (size_t i = 0; i < n_peaks; ++i) {
-        cout << "Peaks[" << i << "]: " << FFT_FREQ(REZ, indices[i])
+        cout << "Peaks[" << i << "]: " << fftFreq(REZ, indices[i])
              << " amp=" << amps[i] << "\n";
     }
 
