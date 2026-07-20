@@ -101,6 +101,7 @@ set(ISPP_SOURCES
     src/main.cpp
     # Core
     src/core/rng.cpp
+    src/core/fft.cpp
     # Window
     src/window/window.cpp
     # Signal

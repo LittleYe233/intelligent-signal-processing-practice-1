@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <string_view>
+#include <vector>
 
 namespace ispp {
 
@@ -16,12 +17,11 @@ public:
     explicit FftPeakEstimator(std::size_t max_peak_count = 1,
                               double threshold = 0.0);
 
-    /// @todo 实现 FFT 直接峰值估计
-    ///   1. 对 input 做 FFT 得到幅度谱 (可通过 PocketFFT 完成)
-    ///   2. 以 threshold 过滤噪声，取前 max_peak_count 个局部极大值
-    ///   3. 返回频率-幅度对列表
+    /// @brief FFT 直接峰值估计（委托 core/fft 公共工具）。
+    /// @param window_kind 本算法不依赖窗类型，参数被忽略。
     std::vector<FrequencyPeak> estimate(const RealArray &input,
-                                        double sample_rate) override;
+                                        double sample_rate,
+                                        WindowKind window_kind) override;
 
     std::string_view name() const override;
 

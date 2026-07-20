@@ -1,16 +1,12 @@
 #include "ispp/experiment/experiment_runner.h"
 
+#include "ispp/core/fft.h"
 #include "ispp/core/rng.h"
 #include "ispp/signal/signal_generator.h"
 #include "ispp/window/window.h"
 
-#include <pocketfft_hdronly.h>
-
-#include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <complex>
-#include <numeric>
 #include <string>
 #include <utility>
 
@@ -59,7 +55,8 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
         applyWindow(input, Config.Env.Window.Kind);
 
         // --- 3. 频率估计（由 Runner 组装 EstimationResult 并注入计时） ---
-        auto peaks = Estimator->estimate(input, SAMPLE_RATE);
+        auto peaks =
+            Estimator->estimate(input, SAMPLE_RATE, Config.Env.Window.Kind);
         auto compute_end = std::chrono::steady_clock::now();
 
         double compute_sec =
@@ -80,26 +77,14 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
             result.LastInputSignal = input;
             result.LastPeaks = est_result.Peaks;
 
-            // 用 PocketFFT 计算单边幅度谱
-            const std::size_t OUT_SIZE = N / 2 + 1;
-            std::vector<std::complex<double>> spectrum(OUT_SIZE);
-
-            pocketfft::shape_t shape = {N};
-            pocketfft::stride_t stride_in = {
-                static_cast<std::ptrdiff_t>(sizeof(double))};
-            pocketfft::stride_t stride_out = {
-                static_cast<std::ptrdiff_t>(sizeof(std::complex<double>))};
-
-            pocketfft::r2c(shape, stride_in, stride_out,
-                           static_cast<std::size_t>(0), pocketfft::FORWARD,
-                           input.data(), spectrum.data(),
-                           2.0 / static_cast<double>(N));
-
+            // 复用公共 FFT 工具计算单边幅度谱
+            const ComplexArray SPECTRUM = computeDft(input);
+            const std::size_t OUT_SIZE = SPECTRUM.size();
             result.LastSpectrumFreqHz.resize(OUT_SIZE);
             result.LastSpectrumMag.resize(OUT_SIZE);
             for (std::size_t k = 0; k < OUT_SIZE; ++k) {
                 result.LastSpectrumFreqHz[k] = static_cast<double>(k) * BIN_HZ;
-                result.LastSpectrumMag[k] = std::abs(spectrum[k]);
+                result.LastSpectrumMag[k] = std::abs(SPECTRUM[k]);
             }
         }
 

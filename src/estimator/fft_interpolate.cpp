@@ -8,15 +8,19 @@ FftInterpolateEstimator::FftInterpolateEstimator(std::size_t max_peak_count,
     : MaxPeakCount(max_peak_count), Threshold(threshold) {}
 
 /// @todo 实现 FFT 插值频率估计：
-///   1. 使用 PocketFFT 对 input 进行 r2c 变换
-///   2. 计算单边幅度谱，找到局部极大值（幅度 > Threshold）
-///   3. 对每个峰附近的 3 个点做抛物线插值或 Quinn 插值
-///   4. 取前 MaxPeakCount 个修正后的频率-幅度对
-///   5. 返回频率-幅度对列表
+///   1. 使用 computeDft(input) 得到单边复数谱
+///   2. 使用 findPeaksFromDft(dft, Threshold, bin_hz, MaxPeakCount) 得粗峰
+///   3. 按 window_kind 选择插值算法：
+///        - RECTANGULAR / 未知：通用抛物线或 Quinn 插值
+///        - HANN / HAMMING / BLACKMAN：窗特定系数修正
+///   4. 对每个粗峰邻近 3 点做插值，修正频率与幅度
+///   5. 返回修正后的频率-幅度对列表
 std::vector<FrequencyPeak>
-FftInterpolateEstimator::estimate(const RealArray &input, double sample_rate) {
+FftInterpolateEstimator::estimate(const RealArray &input, double sample_rate,
+                                  WindowKind window_kind) {
     (void)input;
     (void)sample_rate;
+    (void)window_kind;
 
     return {};
 }

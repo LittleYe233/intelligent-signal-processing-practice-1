@@ -73,15 +73,16 @@ intelligent-signal-processing-practice-1/
 ├── include/
 │   └── ispp/                   ← 项目公共头根（命名空间隔离）
 │       ├── core/
-│       │   ├── types.h             ← RealArray, FrequencyPeak, EstimationResult
+│       │   ├── types.h             ← RealArray, ComplexArray, FrequencyPeak, EstimationResult
 │       │   ├── parameters.h        ← SignalSpec / WindowSpec / NoiseSpec / InterferenceSpec / EnvSpec
-│       │   └── rng.h               ← 统一随机数生成器封装（支持种子复现）
+│       │   ├── rng.h               ← 统一随机数生成器封装（支持种子复现）
+│       │   └── fft.h               ← 公共 FFT 工具：computeDft / findPeaksFromDft
 │       ├── window/
 │       │   └── window.h            ← WindowKind enum + applyWindow()
 │       ├── signal/
 │       │   └── signal_generator.h  ← 合成输入信号
 │       ├── estimator/
-│       │   ├── estimator.h         ← IEstimator 接口 + EstimationResult
+│       │   ├── estimator.h         ← IEstimator 接口
 │       │   ├── fft_peak.h
 │       │   ├── fft_interpolate.h
 │       │   ├── music.h
@@ -99,13 +100,14 @@ intelligent-signal-processing-practice-1/
 │   ├── app/
 │   │   └── main.cpp                ← GUI 启动（完整实现）
 │   ├── core/
-│   │   └── rng.cpp
+│   │   ├── rng.cpp
+│   │   └── fft.cpp                 ← 公共 FFT 工具（完整实现）
 │   ├── window/
 │   │   └── window.cpp
 │   ├── signal/
 │   │   └── signal_generator.cpp
 │   ├── estimator/
-│   │   ├── fft_peak.cpp            ← 用户实现
+│   │   ├── fft_peak.cpp            ← 用户实现（可调用 core/fft）
 │   │   ├── fft_interpolate.cpp     ← 用户实现
 │   │   ├── music.cpp               ← 用户实现
 │   │   └── esprit.cpp              ← 用户实现
@@ -255,6 +257,39 @@ private:
 } // namespace ispp
 ```
 
+### 5.4 `include/ispp/core/fft.h`（**完整实现**）
+
+公共 FFT 工具，供各 estimator 与 ExperimentRunner 频谱可视化复用。
+从实数序列到粗略峰值的两步流水线独立于具体估计算法。
+
+```cpp
+#pragma once
+
+#include "ispp/core/types.h"
+
+#include <cstddef>
+#include <vector>
+
+namespace ispp {
+
+/// @brief 对实数序列做 r2c FFT，返回单边复数谱。
+///
+/// 输出长度为 N/2+1。幅度已按单边谱归一化（×2/N），
+/// 使正弦信号峰值幅度近似等于时域幅度。
+/// FFT 失败时返回空数组。
+ComplexArray computeDft(const RealArray& input);
+
+/// @brief 从复数 DFT 幅度谱中提取局部极大值峰值。
+///
+/// threshold_factor 为相对最大幅值的比率阈值；
+/// bin_hz = sample_rate / N；最多返回 max_peak_count 个峰。
+std::vector<FrequencyPeak>
+findPeaksFromDft(const ComplexArray& dft, double threshold_factor,
+                 double bin_hz, std::size_t max_peak_count);
+
+} // namespace ispp
+```
+
 ---
 
 ## 6. 模块设计
@@ -312,9 +347,11 @@ public:
 ```cpp
 #pragma once
 
+#include "ispp/core/parameters.h"
 #include "ispp/core/types.h"
 
 #include <string_view>
+#include <vector>
 
 namespace ispp {
 
@@ -322,37 +359,50 @@ class IEstimator {
 public:
     virtual ~IEstimator() = default;
 
-    // 输入：已加窗的实数信号幅度 + 采样率（算法内部不得依赖"真实频率"）
+    // 输入：已加窗的实数信号 + 采样率 + 窗函数类型
+    // window_kind 默认 RECTANGULAR；estimator 可按需忽略或用于算法分支
+    // 未知/不支持的窗由 estimator 内部回退处理
     // 返回频率-幅度对列表（不含计时；计时由 Runner 在外部完成）
-    virtual std::vector<FrequencyPeak> estimate(const RealArray& input,
-                                                double sampleRate) = 0;
+    virtual std::vector<FrequencyPeak>
+    estimate(const RealArray& input, double sampleRate,
+             WindowKind windowKind = WindowKind::RECTANGULAR) = 0;
     virtual std::string_view name() const = 0;
 };
 
 } // namespace ispp
 ```
 
-四个实现类（头文件签名骨架，cpp 仅空实现 + `/// @todo`）：
+四个实现类（头文件签名骨架，cpp 仅空实现 + `/// @todo`；
+`fft_peak` 可调用 `core/fft` 公共工具完成实现）：
 
 ```cpp
 // fft_peak.h
 class FftPeakEstimator : public IEstimator {
 public:
     /// @todo 构造可接受 maxFreqCount / 阈值等用户配置
-    std::vector<FrequencyPeak> estimate(const RealArray& input,
-                                        double sampleRate) override;
+    std::vector<FrequencyPeak>
+    estimate(const RealArray& input, double sampleRate,
+             WindowKind windowKind = WindowKind::RECTANGULAR) override;
     std::string_view name() const override;
 };
 
-// fft_interpolate.h
-class FftInterpolateEstimator : public IEstimator { /* 同上 */ };
+// fft_interpolate.h — 不同窗函数可能需要不同插值系数
+class FftInterpolateEstimator : public IEstimator {
+public:
+    /// @todo 按 windowKind 选择插值算法；未知窗回退到通用插值
+    std::vector<FrequencyPeak>
+    estimate(const RealArray& input, double sampleRate,
+             WindowKind windowKind = WindowKind::RECTANGULAR) override;
+    std::string_view name() const override;
+};
 
 // music.h
 class MusicEstimator : public IEstimator {
 public:
     /// @todo 构造接受 maxFreqCount（用户配置）；依赖 Eigen（用户接入后实现）
-    std::vector<FrequencyPeak> estimate(const RealArray& input,
-                                        double sampleRate) override;
+    std::vector<FrequencyPeak>
+    estimate(const RealArray& input, double sampleRate,
+             WindowKind windowKind = WindowKind::RECTANGULAR) override;
     std::string_view name() const override;
 };
 
@@ -360,14 +410,15 @@ public:
 class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 ```
 
-| 算法 | 关键依赖 | 多频策略 |
-|---|---|---|
-| FFT 直接峰值 | PocketFFT | 阈值 + 局部极大值 |
-| FFT 插值 | PocketFFT | 每峰值邻近 3 点抛物线/Quinn 插值 |
-| MUSIC | Eigen（SVD） | 由 `maxFreqCount` 决定特征值谱峰个数 |
-| ESPRIT | Eigen（SVD + 子空间旋转） | 由 `maxFreqCount` 决定 |
+| 算法 | 关键依赖 | 多频策略 | 窗类型依赖 |
+|---|---|---|---|
+| FFT 直接峰值 | PocketFFT（via `core/fft`） | 阈值 + 局部极大值 | 不依赖（忽略 windowKind） |
+| FFT 插值 | PocketFFT（via `core/fft`） | 每峰值邻近 3 点抛物线/Quinn 插值 | **依赖**：不同窗用不同插值系数 |
+| MUSIC | Eigen（SVD） | 由 `maxFreqCount` 决定特征值谱峰个数 | 可选 |
+| ESPRIT | Eigen（SVD + 子空间旋转） | 由 `maxFreqCount` 决定 | 可选 |
 
 > 单频是 `maxFreqCount == 1` 的特例。
+> 推荐流水线：`computeDft(input)` → `findPeaksFromDft(...)` →（可选）插值/子空间精修。
 
 ### 6.4 Metrics（接口 + 骨架）
 
@@ -524,11 +575,12 @@ private:
    c. RealArray input = SignalGenerator::generate(config.signal, config.env, rng);
    d. 计时开始（包含窗函数施加）
    e. applyWindow(input, config.env.window.kind);
-    f. auto peaks = estimator_->estimate(input, sampleRate);
+    f. auto peaks = estimator_->estimate(input, sampleRate, config.env.window.kind);
     g. 计时结束 → 组装 EstimationResult{std::move(peaks), computeSec}
-   h. for each metric: samples[m].push_back(metric->evaluate(trueFreq, er))
-   i. 若 i == iterationCount - 1：缓存 lastInputSignal / lastSpectrum* / lastPeaks
-   j. onProgress((i + 1) / iterationCount)
+    h. for each metric: samples[m].push_back(metric->evaluate(trueFreq, er))
+    i. 若 i == iterationCount - 1：缓存 lastInputSignal / lastSpectrum* / lastPeaks
+       （频谱通过 computeDft(input) 计算，复用 core/fft）
+    j. onProgress((i + 1) / iterationCount)
 5. for each metric m: result.perMetricStats[m->name()] = computeStats(samples[m])
 6. result.totalRuntimeSec = 全程计时
 7. return result;
@@ -690,7 +742,7 @@ endif()
 | # | 里程碑 | 实现程度 |
 |---|---|---|
 | M1 | Core 类型 + Signal/Window 骨架 + 蒙特卡洛完整 | 骨架 + MonteCarlo 实现 |
-| M2 | FFT 估计器骨架 + Eigen 接入（用户做） | 骨架（用户填实现） |
+| M2 | FFT 估计器 + core/fft 公共工具 + WindowKind 参数 | 工具完整；fft_peak 完整；fft_interpolate 骨架 |
 | M3 | MUSIC/ESPRIT 骨架 | 骨架 |
 | M4 | Metrics 骨架 + Statistics 完整 | 骨架 + Stats 实现 |
 | M5 | UI 完整 + main.cpp | **完整实现** |
@@ -717,6 +769,7 @@ endif()
 
 | 部分 | 完整实现范围 |
 |---|---|
+| `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
 | `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
@@ -730,11 +783,14 @@ endif()
 | `core/rng.cpp` 各分布抽样接口实现 | 用户 |
 | `window/window.cpp` 各窗函数系数 | 用户 |
 | `signal/signal_generator.cpp` 合成流水线 | 用户 |
-| `estimator/*.cpp` 四种算法实现 | 用户 |
+| `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
+| `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户 |
+| `estimator/music.cpp` / `esprit.cpp` | 用户 |
 | `metrics/*.cpp` 各 evaluate 逻辑 | 用户 |
 | Eigen submodule + CMake 接入 | 用户 |
 
 > **算法实现完毕后无需修改蒙特卡洛或 UI**：因 `ExperimentRunner` 仅依赖 `IEstimator` / `IMetric` 抽象接口。
+> **推荐**：estimator 内部优先调用 `computeDft` / `findPeaksFromDft`，避免重复实现 PocketFFT 封装。
 
 ---
 

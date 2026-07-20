@@ -11,6 +11,7 @@ Checks: >
   bugprone-*,
   -bugprone-assignment-in-if-condition,
   -bugprone-branch-clone,
+  -bugprone-easily-swappable-parameters,
   -bugprone-reserved-identifier,
   performance-*,
   -performance-no-automatic-move,
