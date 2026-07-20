@@ -214,6 +214,15 @@ struct NoiseSpec {
     double snrDb;           // 信噪比 [dB]
 };
 
+// 噪声上下文摘要（供 estimator 接口使用）。
+// 与 NoiseSpec 分离：NoiseSpec 是噪声生成配置，NoiseInfo 是估计上下文，
+// 仅包含 estimator 需要知晓的最基本信息。
+// 预留扩展：未来可按分布携带额外数值参数（方差、尺度等）。
+struct NoiseInfo {
+    NoiseDistribution distribution;
+    double snrDb;           // 信噪比 [dB]
+};
+
 struct InterferenceSpec {
     double deltaBins;       // 与原始信号频率的差，单位为 bin；== 0 表示无干扰
     double amplitude;       // 干扰幅度（线性）
@@ -344,6 +353,19 @@ public:
 
 `include/ispp/estimator/estimator.h`
 
+所有与信号相关的上下文参数统一封装为 `EstimationContext`：
+
+```cpp
+/// 单次估计调用的上下文。
+/// 封装 estimator 需要知晓但无法从 input 推导的信号信息。
+struct EstimationContext {
+    double sampleRateHz;        // 采样率 [Hz]
+    WindowKind windowKind;      // input 上的窗函数类型（默认 Rectangular）
+    std::size_t frequencyCount; // 信号频率分量数（无干扰 = MaxFreqCount，有干扰 = MaxFreqCount+1）
+    NoiseInfo noiseInfo;        // 噪声分布 + 信噪比数值信息
+};
+```
+
 ```cpp
 #pragma once
 
@@ -359,50 +381,48 @@ class IEstimator {
 public:
     virtual ~IEstimator() = default;
 
-    // 输入：已加窗的实数信号 + 采样率 + 窗函数类型
-    // window_kind 默认 RECTANGULAR；estimator 可按需忽略或用于算法分支
-    // 未知/不支持的窗由 estimator 内部回退处理
+    // 输入：已加窗的实数信号 + 上下文（采样率/窗类型/频率数/噪声信息）
     // 返回频率-幅度对列表（不含计时；计时由 Runner 在外部完成）
     virtual std::vector<FrequencyPeak>
-    estimate(const RealArray& input, double sampleRate,
-             WindowKind windowKind = WindowKind::RECTANGULAR) = 0;
+    estimate(const RealArray& input, const EstimationContext& context) = 0;
     virtual std::string_view name() const = 0;
 };
 
 } // namespace ispp
 ```
 
-四个实现类（头文件签名骨架，cpp 仅空实现 + `/// @todo`；
-`fft_peak` 可调用 `core/fft` 公共工具完成实现）：
+四个实现类。构造函数仅保留算法调优参数，
+信号相关参数（频率数量、窗类型、噪声）通过 `EstimationContext` 传入：
 
 ```cpp
 // fft_peak.h
 class FftPeakEstimator : public IEstimator {
 public:
-    /// @todo 构造可接受 maxFreqCount / 阈值等用户配置
+    /// @param threshold 相对最大幅值的阈值因子（默认 0 = 不过滤）
+    explicit FftPeakEstimator(double threshold = 0.0);
     std::vector<FrequencyPeak>
-    estimate(const RealArray& input, double sampleRate,
-             WindowKind windowKind = WindowKind::RECTANGULAR) override;
+    estimate(const RealArray& input, const EstimationContext& context) override;
     std::string_view name() const override;
 };
 
 // fft_interpolate.h — 不同窗函数可能需要不同插值系数
 class FftInterpolateEstimator : public IEstimator {
 public:
-    /// @todo 按 windowKind 选择插值算法；未知窗回退到通用插值
+    /// @param threshold 相对最大幅值的阈值因子
+    explicit FftInterpolateEstimator(double threshold = 0.0);
+    /// @todo 按 context.windowKind 选择插值算法；未知窗回退到通用插值
     std::vector<FrequencyPeak>
-    estimate(const RealArray& input, double sampleRate,
-             WindowKind windowKind = WindowKind::RECTANGULAR) override;
+    estimate(const RealArray& input, const EstimationContext& context) override;
     std::string_view name() const override;
 };
 
 // music.h
 class MusicEstimator : public IEstimator {
 public:
-    /// @todo 构造接受 maxFreqCount（用户配置）；依赖 Eigen（用户接入后实现）
+    /// @todo 依赖 Eigen（用户接入后实现）；频率数由 context.frequencyCount 决定
+    MusicEstimator() = default;
     std::vector<FrequencyPeak>
-    estimate(const RealArray& input, double sampleRate,
-             WindowKind windowKind = WindowKind::RECTANGULAR) override;
+    estimate(const RealArray& input, const EstimationContext& context) override;
     std::string_view name() const override;
 };
 
@@ -410,14 +430,14 @@ public:
 class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 ```
 
-| 算法 | 关键依赖 | 多频策略 | 窗类型依赖 |
+| 算法 | 关键依赖 | 多频策略 | 上下文使用 |
 |---|---|---|---|
-| FFT 直接峰值 | PocketFFT（via `core/fft`） | 阈值 + 局部极大值 | 不依赖（忽略 windowKind） |
-| FFT 插值 | PocketFFT（via `core/fft`） | 每峰值邻近 3 点抛物线/Quinn 插值 | **依赖**：不同窗用不同插值系数 |
-| MUSIC | Eigen（SVD） | 由 `maxFreqCount` 决定特征值谱峰个数 | 可选 |
-| ESPRIT | Eigen（SVD + 子空间旋转） | 由 `maxFreqCount` 决定 | 可选 |
+| FFT 直接峰值 | PocketFFT（via `core/fft`） | 阈值 + 局部极大值 | 忽略 windowKind；frequencyCount 控制最多返回峰数 |
+| FFT 插值 | PocketFFT（via `core/fft`） | 每峰值邻近 3 点抛物线/Quinn 插值 | **依赖** windowKind 选择插值系数；frequencyCount 控制峰数 |
+| MUSIC | Eigen（SVD） | 由 `context.frequencyCount` 决定信号子空间维数 | 依赖 frequencyCount + noiseInfo |
+| ESPRIT | Eigen（SVD + 子空间旋转） | 由 `context.frequencyCount` 决定 | 同上 |
 
-> 单频是 `maxFreqCount == 1` 的特例。
+> 单频是 `frequencyCount == 1` 的特例。
 > 推荐流水线：`computeDft(input)` → `findPeaksFromDft(...)` →（可选）插值/子空间精修。
 
 ### 6.4 Metrics（接口 + 骨架）
@@ -496,7 +516,11 @@ struct ExperimentConfig {
     SignalSpec signal;
     EnvSpec env;
     MonteCarloConfig monteCarlo;
-    std::size_t maxFreqCount;     // 传给 MUSIC/ESPRIT
+    std::size_t maxFreqCount;     // 用户配置：最大检测频率数（默认 1）。
+                                  // 仿真假设只有单音信号，该字段与干扰维度共同
+                                  // 决定 EstimationContext::frequencyCount：
+                                  //   无干扰 → frequencyCount = maxFreqCount
+                                  //   有干扰 → frequencyCount = maxFreqCount + 1
 };
 
 } // namespace ispp
@@ -575,7 +599,18 @@ private:
    c. RealArray input = SignalGenerator::generate(config.signal, config.env, rng);
    d. 计时开始（包含窗函数施加）
    e. applyWindow(input, config.env.window.kind);
-    f. auto peaks = estimator_->estimate(input, sampleRate, config.env.window.kind);
+    f. 构造 EstimationContext 并传给 estimator：
+
+       ```text
+       frequencyCount = config.monteCarlo.maxFreqCount +
+                        (config.env.interference.deltaBins != 0 ? 1 : 0);
+       NoiseInfo noiseInfo{config.env.noise.distribution, config.env.noise.snrDb};
+       EstimationContext ctx{/*sampleRateHz*/ sampleRate,
+                             /*windowKind*/   config.env.window.kind,
+                             /*frequencyCount*/ frequencyCount,
+                             /*noiseInfo*/     noiseInfo};
+       auto peaks = estimator_->estimate(input, ctx);
+       ```
     g. 计时结束 → 组装 EstimationResult{std::move(peaks), computeSec}
     h. for each metric: samples[m].push_back(metric->evaluate(trueFreq, er))
     i. 若 i == iterationCount - 1：缓存 lastInputSignal / lastSpectrum* / lastPeaks
@@ -811,7 +846,7 @@ endif()
 | ID | 议题 | 决策 |
 |---|---|---|
 | OQ-1 | Eigen 依赖 | 由用户自行添加为 submodule 并接入 CMake |
-| OQ-2 | MUSIC/ESPRIT 多频数量 | 由用户在 UI 配置（`maxFreqCount`），默认 1 |
+| OQ-2 | MUSIC/ESPRIT 多频数量 | 由用户在 UI 配置 `maxFreqCount`（默认 1）；通过 `EstimationContext::frequencyCount` 传递——无干扰时 =`maxFreqCount`，有干扰时 =`maxFreqCount+1` |
 | OQ-3 | 维度扫描 | **本版仅作为用户配置项**（频率位置/SNR 用滑块，其余用 Combo）；蒙特卡洛只仿真固定信号+固定环境配置下不同随机噪声的影响；**未来可能扩展为维度扫描** |
 | OQ-4 | 结果持久化 | **仅 GUI 显示**，不导出 CSV/JSON |
 | OQ-5 | 算法时间测量边界 | **计入窗函数施加时间**（窗属于信号预处理） |

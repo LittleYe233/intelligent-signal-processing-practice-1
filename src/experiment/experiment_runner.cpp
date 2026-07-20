@@ -55,8 +55,19 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
         applyWindow(input, Config.Env.Window.Kind);
 
         // --- 3. 频率估计（由 Runner 组装 EstimationResult 并注入计时） ---
-        auto peaks =
-            Estimator->estimate(input, SAMPLE_RATE, Config.Env.Window.Kind);
+        const std::size_t FREQ_CNT =
+            Config.MaxFreqCount +
+            (Config.Env.Interference.DeltaBins != 0.0 ? 1 : 0);
+        const NoiseInfo NOISE_INFO{.Distribution =
+                                       Config.Env.Noise.Distribution,
+                                   .SnrDb = Config.Env.Noise.SnrDb};
+        const EstimationContext CTX{
+            .SampleRateHz = SAMPLE_RATE,
+            .WindowKind = Config.Env.Window.Kind,
+            .FrequencyCount = FREQ_CNT,
+            .NoiseInfo = NOISE_INFO,
+        };
+        auto peaks = Estimator->estimate(input, CTX);
         auto compute_end = std::chrono::steady_clock::now();
 
         double compute_sec =
