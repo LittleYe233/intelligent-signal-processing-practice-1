@@ -92,6 +92,26 @@ The main executable has `WIN32_EXECUTABLE` set, so on Windows it runs as a GUI
 app with **no console window** — send diagnostic output elsewhere or drop into
 a test target.
 
+### Static linking (default on MinGW)
+
+`CMakeLists.txt` enables `-static -static-libgcc -static-libstdc++` whenever
+`MINGW` is set (always on MSYS2 UCRT64). The linker then prefers `.a` over
+`.dll.a`, so the final `build/ISPPracticeOne.exe` links statically against:
+
+- GCC runtime (`libgcc.a`, not `libgcc_s_seh-1.dll`)
+- C++ stdlib (`libstdc++.a`, not `libstdc++-6.dll`)
+- POSIX threads (`libwinpthread.a`, not `libwinpthread-1.dll`)
+- GLFW (`libglfw3.a`, not `glfw3.dll`)
+
+The exe is self-contained and runs on any Windows 10+ machine without MSYS2
+installed. Windows system DLLs (`opengl32.dll`, `kernel32.dll`, etc.) are
+still linked dynamically — they ship with the OS.
+
+**Caveat**: changing link options requires a clean reconfigure
+(`Remove-Item -Recurse -Force build`). Incremental rebuilds do not re-evaluate
+them. Verify with `& 'C:\msys64\ucrt64\bin\ldd.exe' build\ISPPracticeOne.exe` —
+only Windows system DLLs (`C:\WINDOWS\system32\*.dll`) should appear.
+
 ## Operational notes
 
 - `utils/font_shrink/` holds a small Python tool (`fonttools`) for subsetting

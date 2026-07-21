@@ -48,6 +48,11 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 **Refactor work outside milestones**:
 - PeakFinder utility extracted from `findPeaksFromDft` (`388e990`). Doc tracked as v1.1 in `development_solution.md` (§5.5, OQ-8/9/10) but **not** as a formal milestone per user instruction.
 
+### Pending (uncommitted, this session)
+
+- **`CMakeLists.txt`** — added "Static Linking" section (`if(MINGW) add_link_options(-static -static-libgcc -static-libstdc++) endif()`). Forces linker to prefer `.a` over `.dll.a` for GCC runtime, stdlib, winpthread, and GLFW. Resulting `build/ISPPracticeOne.exe` is self-contained, runs on any Windows 10+ machine without MSYS2. **User verified via `ldd`** — no MSYS2 DLLs in dependency list. Suggested commit message: `build(cmake): static-link runtime + GLFW for redistributable exe`.
+- **`AGENTS.md`** — added "Static linking (default on MinGW)" subsection under "Dependency wiring".
+
 ### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
 
 **Core layer**:
@@ -168,6 +173,27 @@ private:
 int win_w = mode->width / monitor_scale_x * 0.85;
 ```
 
+### Static Linking for Redistribution (NEW this session)
+
+`CMakeLists.txt` gates static linking behind `if(MINGW)`:
+```cmake
+if(MINGW)
+    add_link_options(-static -static-libgcc -static-libstdc++)
+endif()
+```
+
+Effect (verified via `ldd`):
+- `libgcc.a` ⟵ instead of `libgcc_s_seh-1.dll`
+- `libstdc++.a` ⟵ instead of `libstdc++-6.dll`
+- `libwinpthread.a` ⟵ instead of `libwinpthread-1.dll`
+- `libglfw3.a` ⟵ instead of `glfw3.dll` (ld prefers `.a` over `.dll.a` under `-static`)
+
+OpenGL (`opengl32.dll`) and Windows system DLLs remain dynamic (they ship with the OS).
+
+**Why not always `-static`?** Potential ABI conflicts when mixing with other DLLs that themselves use libstdc++ — but for a self-contained GUI exe that links nothing else, this is the right tradeoff.
+
+**Caveat**: link-option changes need `Remove-Item -Recurse -Force build`; incremental rebuilds do not re-evaluate them.
+
 ## Mistakes & Lessons (NEVER REPEAT)
 
 ### 1. `// NOLINTNEXTLINE` placement for multi-line function declarations
@@ -287,6 +313,30 @@ std::ranges::partial_sort(v, middle_iter, cmp);
 ```
 
 **Lesson**: With C++20 enabled, prefer `std::ranges::*` algorithms. The ranges API supports projections which often eliminate manual comparator lambdas.
+
+### 15. "静态库" (static library) ≠ "静态链接" (static linking) (NEW this session)
+
+**Mistake**: User assumed `add_library(imgui STATIC ...)` made the final exe self-contained (no DLL dependencies). But:
+1. imgui's `target_link_libraries(... PUBLIC glfw3 ...)` propagates glfw3 to the final exe, and `find_package(glfw3)` on MSYS2 returns the shared import library (`libglfw3.dll.a`), not the static archive (`libglfw3.a`). Resulting exe depends on `glfw3.dll` at runtime.
+2. MinGW defaults to dynamic linking for `libgcc`, `libstdc++`, `libwinpthread` — completely unrelated to whether third-party libs are built as `STATIC`.
+
+Symptom: exe built and ran on dev machine, but on a fresh Windows machine reported missing `libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll`, `glfw3.dll`.
+
+**Resolution**: Add explicit link options in `CMakeLists.txt`:
+```cmake
+if(MINGW)
+    add_link_options(-static -static-libgcc -static-libstdc++)
+endif()
+```
+`-static` forces ld to prefer `.a` archives over `.dll.a` import libs globally; `-static-libgcc`/`-static-libstdc++` are belt-and-suspenders for the GCC runtime. Must do a clean reconfigure (`Remove-Item -Recurse -Force build`) — incremental rebuilds do not re-evaluate link options.
+
+**Lesson**: Two orthogonal concepts:
+1. **`STATIC` vs `SHARED` library** (CMake target property) — how a *dependency* is built.
+2. **`-static` vs default dynamic linking** (linker option) — how the *final executable* binds its dependencies.
+
+A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at link time. For redistributable Windows exes built with MSYS2 UCRT64, ALWAYS add `-static -static-libgcc -static-libstdc++` (assuming `.a` versions exist — UCRT64 ships them by default; verify with `ls C:\msys64\ucrt64\lib\lib<name>.a`).
+
+**Validation**: DO NOT validate this point.
 
 ## Build & Validation Commands
 

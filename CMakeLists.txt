@@ -46,12 +46,25 @@ if(ISPP_ENABLE_NATIVE)
     endif()
 elseif(ISPP_ENABLE_X86_64_V4)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        add_compile_options(-march=x86-64-v4 -mtune=x86-64-v4)
+        add_compile_options(-march=x86-64-v4)
     endif()
 elseif(ISPP_ENABLE_X86_64_V3)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        add_compile_options(-march=x86-64-v3 -mtune=x86-64-v3)
+        add_compile_options(-march=x86-64-v3)
     endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Static Linking (MSYS2 UCRT64 redistributable builds)
+# ---------------------------------------------------------------------------
+# Force static linking of GCC runtime, C++ stdlib, winpthread, and all
+# dependent libraries (including GLFW). Produces a self-contained .exe that
+# runs on any Windows machine without shipping MSYS2 DLLs.
+# Requires: pacman -S mingw-w64-ucrt-x86_64-glfw (provides libglfw3.a).
+# Note: Must do a clean configure (rm -rf build) for link options to take
+# effect; incremental rebuilds will not re-evaluate them.
+if(MINGW)
+    add_link_options(-static -static-libgcc -static-libstdc++)
 endif()
 
 # ---------------------------------------------------------------------------
