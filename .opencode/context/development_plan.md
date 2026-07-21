@@ -326,7 +326,7 @@ void applyWindow(RealArray& signal, WindowKind kind);
 
 > 实现细节：矩形窗为 no-op；其余三种按标准系数计算。
 
-### 6.2 Signal（骨架）
+### 6.2 Signal（**完整实现**）
 
 `include/ispp/signal/signal_generator.h`
 
@@ -341,10 +341,9 @@ namespace ispp {
 
 class SignalGenerator {
 public:
-    /// @todo 合成"输入信号" = 原始正弦 + (可选)干扰 + 噪声
-    ///   RealArray generate(const SignalSpec& signal,
-    ///                      const EnvSpec& env,
-    ///                      Rng& rng) const;
+    /// 合成"输入信号" = 原始正弦 → (+干扰，若 deltaBins != 0) → (+噪声，按分布与 SNR)
+    RealArray generate(const SignalSpec& signal, const EnvSpec& env,
+                       Rng& rng) const;
 };
 
 } // namespace ispp
@@ -809,6 +808,7 @@ endif()
 |---|---|
 | `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft） |
 | `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
+| `signal/signal_generator.{h,cpp}` | 全部（正弦生成 + 干扰叠加 + 噪声注入） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
 | `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
@@ -820,12 +820,10 @@ endif()
 | 部分 | 责任方 |
 |---|---|
 | `window/window.cpp` 各窗函数系数 | 用户 |
-| `signal/signal_generator.cpp` 合成流水线 | 用户 |
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
-| `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户 |
+| `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户（已完成） |
 | `estimator/music.cpp` / `esprit.cpp` | 用户 |
 | `metrics/*.cpp` 各 evaluate 逻辑 | 用户 |
-| Eigen submodule + CMake 接入 | 用户 |
 
 > **算法实现完毕后无需修改蒙特卡洛或 UI**：因 `ExperimentRunner` 仅依赖 `IEstimator` / `IMetric` 抽象接口。
 > **推荐**：estimator 内部优先调用 `computeDft` / `findPeaksFromDft`，避免重复实现 PocketFFT 封装。
