@@ -18,7 +18,7 @@ option(BUILD_TESTING OFF)
 option(ISPP_ENABLE_NATIVE OFF)
 option(ISPP_ENABLE_X86_64_V4 OFF)
 option(ISPP_ENABLE_X86_64_V3 OFF)
-option(ISPP_WIN32_GUI "Build as windowed GUI app (no console)" ON)
+option(ISPP_WIN32_GUI "Build as windowed GUI app (no console)" OFF)
 
 # MSYS2/GCC 16 warning flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -63,7 +63,10 @@ endif()
 # Requires: pacman -S mingw-w64-ucrt-x86_64-glfw (provides libglfw3.a).
 # Note: Must do a clean configure (rm -rf build) for link options to take
 # effect; incremental rebuilds will not re-evaluate them.
+
 if(MINGW)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    set(BUILD_SHARED_LIBS OFF)
     add_link_options(-static -static-libgcc -static-libstdc++)
 endif()
 
@@ -73,6 +76,8 @@ endif()
 
 find_package(glfw3 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(Intl REQUIRED)
+find_package(Iconv REQUIRED)
 
 set(imgui_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
 set(IMGUI_SOURCE
@@ -105,8 +110,16 @@ add_library(Eigen INTERFACE)
 target_include_directories(Eigen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen/Eigen)
 
 # ---------------------------------------------------------------------------
+# Additional CMake Modules
+# ---------------------------------------------------------------------------
+
+# Format locales
+include(cmake/msgfmt.cmake)
+
+# ---------------------------------------------------------------------------
 # Testing
 # ---------------------------------------------------------------------------
+
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
@@ -150,7 +163,7 @@ add_executable(${PROJECT_NAME} ${ISPP_SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies
-target_link_libraries(${PROJECT_NAME} PRIVATE glfw3 OpenGL::GL imgui implot PocketFFT Eigen)
+target_link_libraries(${PROJECT_NAME} PRIVATE glfw3 OpenGL::GL imgui implot PocketFFT Eigen Intl::Intl Iconv::Iconv)
 
 # Windows specific flag: Hides the console window for GUI mode
 if(ISPP_WIN32_GUI)

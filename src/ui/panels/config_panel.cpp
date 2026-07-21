@@ -1,5 +1,4 @@
 #include "ispp/ui/panels/config_panel.h"
-
 #include "ispp/core/parameters.h"
 #include "ispp/estimator/esprit.h"
 #include "ispp/estimator/fft_interpolate.h"
@@ -9,7 +8,6 @@
 #include "ispp/metrics/percentage_error.h"
 #include "ispp/metrics/rmse.h"
 #include "ispp/ui/widgets/enum_combo.h"
-
 #include <array>
 #include <imgui.h>
 
