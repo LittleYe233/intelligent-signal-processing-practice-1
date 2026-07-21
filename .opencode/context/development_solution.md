@@ -133,7 +133,7 @@ intelligent-signal-processing-practice-1/
 │   ├── imgui/ implot/ pocketfft/   ← 已有
 │   └── eigen/                      ← 用户自行添加
 └── .opencode/context/
-    └── development_plan.md         ← 本文件
+    └── development_solution.md     ← 本文件
 ```
 
 ---
