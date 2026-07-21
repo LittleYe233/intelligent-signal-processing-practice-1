@@ -1,8 +1,9 @@
+#include <cstddef>
 #define _USE_MATH_DEFINES
 
-#include "ispp/estimator/fft_interpolate.h"
 #include "ispp/core/fft.h"
 #include "ispp/core/types.h"
+#include "ispp/estimator/fft_interpolate.h"
 #include <algorithm>
 #include <cmath>
 #include <complex>
@@ -56,7 +57,7 @@ FftInterpolateEstimator::estimate(const RealArray &input,
     }
 
     // Only choose the highest peak
-    const size_t K_MAX =
+    const size_t MAX_PEAK_IDX =
         // NOLINTNEXTLINE(modernize-use-ranges)
         static_cast<size_t>(std::max_element(peaks.cbegin(), peaks.cend(),
                                              [](auto a, auto b) {
@@ -64,8 +65,14 @@ FftInterpolateEstimator::estimate(const RealArray &input,
                                                         b.Amplitude;
                                              }) -
                             peaks.begin());
+    const auto K_MAX = static_cast<size_t>(
+        std::round(peaks[MAX_PEAK_IDX].FrequencyHz / BIN_HZ));
 
     // Compare left and right spectrum line
+    // Edge case
+    if (K_MAX == 0 || K_MAX == N / 2) {
+        return std::vector<FrequencyPeak>{peaks[MAX_PEAK_IDX]};
+    }
     // Peaks have been normalized, but we need other elements, so access raw DFT
     // array instead.
     const double MAG_RIGHT = std::abs(DFT[K_MAX + 1]),
