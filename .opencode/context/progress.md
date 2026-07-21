@@ -5,7 +5,7 @@
 ## Project
 
 **ISPPracticeOne** — C++20 signal frequency estimation simulation framework (MSYS2 UCRT64).
-Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6).
+Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.1).
 
 ## Current Status
 
@@ -13,6 +13,11 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 
 | Hash | Message |
 |---|---|
+| `05d18bb` | build(cmake): refine build options |
+| `388e990` | ♻️ refactor(core): extract peak-finding into reusable PeakFinder utility |
+| `4d7fa6a` | fix(fft_interpolate): fix formula error |
+| `c8afafb` | fix(fft_interpolate): fix vector index selection error |
+| `90d3faa` | chore(context): rename development_plan to development_solution |
 | `bf920b2` | ✨ feat(ui): implement complete M5 UI layer with panels and exception handling |
 | `0b3184c` | ✨ feat(metrics): implement three evaluation metrics |
 | `7cf531b` | ✨ feat(window): implement four standard window functions |
@@ -40,11 +45,16 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
 | M6 | End-to-end smoke test | ⏳ Pending (user runs the app) |
 
+**Refactor work outside milestones**:
+- PeakFinder utility extracted from `findPeaksFromDft` (`388e990`). Doc tracked as v1.1 in `development_solution.md` (§5.5, OQ-8/9/10) but **not** as a formal milestone per user instruction.
+
 ### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
 
 **Core layer**:
 - `src/core/rng.cpp` — ✅ four distribution samplers (normal/uniform/laplace/impulse)
-- `src/core/fft.cpp` — ✅ `computeDft` (PocketFFT r2c, normalized ×2/N) + `findPeaksFromDft`
+- `src/core/fft.cpp` — ✅ `computeDft` (PocketFFT r2c, normalized ×2/N) + `findPeaksFromDft` (delegates to `PeakFinder<double>`)
+- `include/ispp/core/peak_finder.h` — ✅ `PeakFinder<T>` class template (static-only API, nested `Peak` struct) — NEW in `388e990`
+- `include/ispp/core/peak_finder.tpp` — ✅ template impl: median filter + prominence + FWHM + `findPeaks` pipeline (user implemented) — NEW in `388e990`
 - `include/ispp/core/types.h` — `RealArray`, `ComplexArray`, `FrequencyPeak`, `EstimationResult`, `AMP_UNKNOWN`
 - `include/ispp/core/parameters.h` — `SignalSpec`, `WindowKind`, `NoiseSpec`, `NoiseInfo`, `InterferenceSpec`, `EnvSpec`
 - `include/ispp/estimator/estimator.h` — `EstimationContext` struct + `IEstimator` interface
@@ -55,8 +65,8 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 
 **Estimator layer**:
 - `src/estimator/fft_peak.cpp` — ✅ PocketFFT + threshold peak search (user implemented)
-- `src/estimator/fft_interpolate.cpp` — ✅ Quinn init + binary search refinement (user implemented)
-- `src/estimator/music.cpp` — ⏳ skeleton stub (user must implement with Eigen)
+- `src/estimator/fft_interpolate.cpp` — ✅ Quinn init + binary search refinement (user implemented; two formula/index bugfixes in `c8afafb` + `4d7fa6a`)
+- `src/estimator/music.cpp` — ⏳ skeleton stub (user must implement with Eigen; can use `PeakFinder` on pseudospectrum directly per §6.3)
 - `src/estimator/esprit.cpp` — ⏳ skeleton stub (user must implement with Eigen)
 
 **Metrics layer**:
@@ -80,7 +90,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 ### User Responsibilities (REMAINING)
 
 Only two items left:
-1. **`src/estimator/music.cpp`** — implement MUSIC algorithm (needs Eigen SVD)
+1. **`src/estimator/music.cpp`** — implement MUSIC algorithm (needs Eigen SVD). Use `PeakFinder<double>::findPeaks` directly on pseudospectrum (NOT `findPeaksFromDft`).
 2. **`src/estimator/esprit.cpp`** — implement ESPRIT algorithm (needs Eigen SVD + subspace rotation)
 
 Everything else is complete and operational.
@@ -107,12 +117,44 @@ class IEstimator {
 - `input` is **already windowed** — `applyWindow()` mutates in place before `estimate()`
 - `FrequencyCount` derived from `MaxFreqCount` + interference presence
 
+### PeakFinder Utility (NEW in `388e990`, doc §5.5, OQ-8/9/10)
+
+```cpp
+template <std::floating_point T>
+class PeakFinder {
+public:
+    struct Peak {
+        std::size_t Index;
+        T Prominence;
+    };
+    static std::vector<Peak> findPeaks(std::span<const T> data,
+                                       std::size_t kernel_size,
+                                       T margin, T min_prominence,
+                                       T min_width = static_cast<T>(1.0));
+private:
+    static std::vector<T> calcMedianFilter(...);
+    static T calcProminence(...);
+    static T calcWidth(...);
+};
+```
+
+- **Location**: `include/ispp/core/peak_finder.{h,tpp}` — Core layer "工具" slot, FFT-agnostic
+- **API**: All methods `static` — pure utility class, no instance state (corrected reference signature's invalid `static ... const`)
+- **File layout**: `.tpp` included by `.h` at namespace close; `.tpp` includes `.h` unconditionally at top (include guard prevents actual circular inclusion). `.tpp` is NOT in `target_sources` — header-only template. No CMake changes needed.
+- **`findPeaksFromDft` signature unchanged** — public API preserved; delegates internally to `PeakFinder<double>::findPeaks`. Old params mapped:
+  - `kernel_size = 31` (fixed)
+  - `margin = min_prominence = threshold_factor × max_mag`
+  - `min_width = 1.0`
+  - `max_peak_count` → post-filter by prominence descending
+- **MUSIC/ESPRIT should use `PeakFinder` directly** on pseudospectra, NOT `findPeaksFromDft` (which applies `|dft[i]|` to already-linear data — wrong for pseudospectra)
+- **Algorithm**: median-filter noise floor → candidate local maxima → `margin` threshold → prominence ≥ `min_prominence` → FWHM ≥ `min_width`
+
 ### Naming Conventions (enforced by `.clang-tidy`)
-- `CamelCase`: classes, structs, enums, members (`Peaks`, `Config`, `Worker`) — NO trailing underscore
-- `camelBack`: functions (`estimate`, `name`, `addPeaks`)
-- `UPPER_CASE`: constants, enum values (`RECTANGULAR`, `GAUSSIAN`, `AMP_UNKNOWN`)
-- `lower_case`: parameters, local variables (`sample_rate`, `max_peak_count`)
-- Traditional include guards: `#ifndef ISPP_..._H`
+- `CamelCase`: classes, structs, enums, members (`Peaks`, `Config`, `Worker`, `PeakFinder::Peak::Index`) — NO trailing underscore
+- `camelBack`: functions (`estimate`, `name`, `addPeaks`, `findPeaks`, `calcMedianFilter`)
+- `UPPER_CASE`: constants, enum values, local `const` variables (`RECTANGULAR`, `GAUSSIAN`, `AMP_UNKNOWN`, `KERNEL_SIZE`)
+- `lower_case`: parameters, local variables (`sample_rate`, `max_peak_count`, `peak_idx`)
+- Traditional include guards: `#ifndef ISPP_..._H` (and `#ifndef ISPP_..._TPP` for `.tpp` files)
 
 ### UI Architecture
 - `UiManager` owns GLFW window, ImGui/ImPlot contexts, all panels, and the worker thread
@@ -149,9 +191,9 @@ EstimationResult{.Peaks = std::move(peaks), .ComputeTimeSec = compute_sec}
 
 **Mistake**: Ran `clang-format -i CMakeLists.txt`. clang-format is for C++ only; running it on CMake syntax joins lines incorrectly ("Expected a newline, got identifier with text 'project'").
 
-**Resolution**: NEVER run clang-format on `CMakeLists.txt` or any non-C++ file.
+**Resolution**: NEVER run `clang-format` on `CMakeLists.txt` or any non-C++ file.
 
-**Lesson**: Only format `.h`, `.cpp` files. CMake, Markdown, and other formats must be hand-edited.
+**Lesson**: Only format `.h`, `.cpp`, `.tpp` files. CMake, Markdown, and other formats must be hand-edited.
 
 ### 4. ImGui ID conflicts with duplicate labels
 
@@ -175,6 +217,77 @@ The user disabled this check globally in `.clang-tidy` (`-bugprone-easily-swappa
 
 The project convention is plain `CamelCase` for members (`Config`, `Worker`, `Log`), NOT `Config_` or `Worker_`. The trailing underscore style causes `readability-identifier-naming` warnings.
 
+### 8. `static` member functions cannot have cv-qualifiers (NEW in `388e990`)
+
+**Mistake**: User-provided reference signature had `static std::vector<Peak<T>> findPeaks(...) const {}` — the trailing `const` is invalid because static methods have no `this` to be const-qualified.
+
+**Resolution**: Remove `const` from static methods. Make all private helpers `static` too (since class has no instance state).
+
+**Lesson**: When given a "reference signature" by the user, validate it against C++ rules. `static` and cv-qualifiers are mutually exclusive on member functions.
+
+### 9. `.tpp` template implementation files need `#include "parent.h"` (NEW in `388e990`)
+
+**Mistake**: Initial `.tpp` didn't include parent `.h`. Compiling `.cpp` files that included the `.h` worked (because `.h` → `.tpp` chain had full context), but **clangd reported `PeakFinder` template not found** when parsing `.tpp` standalone.
+
+**Resolution**: Add `#include "ispp/core/peak_finder.h"` at top of `.tpp` (inside its own include guard). The `.h`'s include guard prevents actual circular inclusion — when included from `.h`, the `#include "..."h"` is a no-op.
+
+**Lesson**: This is the standard Boost/Eigen pattern for template implementation files. The `.tpp` is never a standalone TU, but editors/IDEs parse it independently — it must be self-contained with respect to declarations it uses.
+
+### 10. `[[maybe_unused]]` placement differs between GCC and clang (NEW in `388e990`)
+
+**Mistake**: Wrote `std::size_t [[maybe_unused]] name` to suppress unused-parameter warnings in stub functions. clangd/clang accepted it; **GCC warned "attribute ignored — an attribute that appertains to a type-specifier is ignored"** AND `-Wunused-parameter` still fired.
+
+**Resolution**: Use `(void)param;` idiom inside the function body. Universally portable across GCC/clang/MSVC.
+
+**Lesson**: For function parameter suppression that needs GCC compatibility, prefer `(void)param;` over `[[maybe_unused]]` on parameter declarations. The attribute placement `Type [[maybe_unused]] name` between type and declarator is interpreted as applying to the type-specifier in GCC, not the parameter.
+
+### 11. Function name mismatch passes clangd but fails GCC (NEW in `388e990`)
+
+**Mistake**: User implementation of `findPeaks` called `calculate_median_filter`, `calculate_prominence`, `calculate_width`, but the header declared `calcMedianFilter`, `calcProminence`, `calcWidth`. **clangd passed without error**; **GCC reported** `error: 'calculate_median_filter' was not declared in this scope; did you mean 'calcMedianFilter'?`.
+
+**Resolution**: Rename call sites to match declared method names exactly.
+
+**Lesson**: clangd is more permissive with unqualified name lookup in templates than GCC. **Always trust the compiler over the language server.** When GCC suggests "did you mean X?", check the call site against the declaration — there's almost always a typo or naming convention mismatch.
+
+### 12. `-Wconversion` on iterator arithmetic and signed/unsigned indexing (NEW in `388e990`)
+
+**Mistake**: User's `.tpp` had three `-Wsign-conversion` violations:
+- `data.begin() + end` where `end` is `size_t` (iterator `operator+` wants `difference_type`)
+- `data[j]` where `j` is `std::ptrdiff_t` (span `operator[]` wants `size_type`)
+- Same pattern in `calcWidth`
+
+**Resolution**:
+```cpp
+data.begin() + static_cast<std::ptrdiff_t>(end)
+const auto UJ = static_cast<std::size_t>(j);
+data[UJ]
+```
+
+**Lesson**: With `-Wconversion` enabled (project default per `AGENTS.md`), any mixed signed/unsigned arithmetic needs an explicit cast. Common patterns to watch:
+- `iterator + size_t` → cast to `std::ptrdiff_t`
+- `span[ptrdiff_t]` → cast to `std::size_t`
+- `vector[ptrdiff_t]` → cast to `std::size_t`
+
+### 13. `clang-format -assume-filename=value` fails in PowerShell (NEW in `388e990`)
+
+**Mistake**: `clang-format -assume-filename=dummy.h -i file.tpp` returned error `.h: No such file or directory` in PowerShell. The `=` after the flag name was being parsed differently.
+
+**Resolution**: Use space instead of `=`: `clang-format -assume-filename dummy.h -i file.tpp`.
+
+**Lesson**: In MSYS2/PowerShell environments, prefer space-separated flag values over `=`, even for flags documented with `=` syntax.
+
+### 14. `modernize-use-ranges` requires C++20 ranges algorithms (NEW in `388e990`)
+
+**Mistake**: Used `std::sort(v.begin(), v.end(), cmp)` and `std::partial_sort(...)`. clang-tidy flagged `modernize-use-ranges`.
+
+**Resolution**: Use ranges versions:
+```cpp
+std::ranges::sort(v, {}, proj);              // {} = default comparator, proj = projection
+std::ranges::partial_sort(v, middle_iter, cmp);
+```
+
+**Lesson**: With C++20 enabled, prefer `std::ranges::*` algorithms. The ranges API supports projections which often eliminate manual comparator lambdas.
+
 ## Build & Validation Commands
 
 ```powershell
@@ -188,13 +301,19 @@ cmake --build build
 # clang-format (C++ files ONLY — never CMakeLists.txt)
 & "C:\msys64\ucrt64\bin\clang-format.exe" -style=file -i <files>
 
+# clang-format for .tpp files (use -assume-filename with SPACE, not =)
+& "C:\msys64\ucrt64\bin\clang-format.exe" -style=file -assume-filename dummy.h -i <file.tpp>
+
 # clang-tidy (needs compile_commands.json from build/)
 & "C:\msys64\ucrt64\bin\clang-tidy.exe" "-p=build" "--quiet" <files>
 ```
 
-**Toolchain**: clang-tidy 22.1.8, GCC from MSYS2 UCRT64 (`C:\msys64\ucrt64\bin`).
+**Toolchain**: clang-tidy 22.1.8, clang-format 22.1.8, GCC from MSYS2 UCRT64 (`C:\msys64\ucrt64\bin`).
 **Debug builds**: include `-g` flag (user added to CMakeLists.txt).
+**`.tpp` support**: `.clang-tidy` has `HeaderFileExtensions: ['h', 'hh', 'hpp', 'hxx', 'tpp']`; `.clang-format` documents the `-assume-filename` workaround.
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (~870 lines, updated through M5)
+- `.opencode/context/development_solution.md` — authoritative plan (v1.1, ~1025 lines, updated through PeakFinder refactor §5.5)
+- `.opencode/context/progress.md` — this file
+- `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)
