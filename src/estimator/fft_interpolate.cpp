@@ -1,19 +1,18 @@
-#include <cstddef>
-#define _USE_MATH_DEFINES
-
+#include "ispp/estimator/fft_interpolate.h"
 #include "ispp/core/fft.h"
 #include "ispp/core/types.h"
-#include "ispp/estimator/fft_interpolate.h"
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstddef>
 #include <cstdlib>
 
 namespace {
 
 double searchCheck(const ispp::RealArray &input, const double delta) {
-    const std::complex<double> COEF = std::polar(
-        1.0, -2.0 * M_PI * delta / static_cast<double>(input.size()));
+    const std::complex<double> COEF =
+        std::polar(1.0, -2.0 * std::numbers::pi * delta /
+                            static_cast<double>(input.size()));
     std::complex<double> result = 0;
     for (double it : input) {
         result += it * COEF;
@@ -80,13 +79,18 @@ FftInterpolateEstimator::estimate(const RealArray &input,
                  MAG_PEAK = std::abs(DFT[K_MAX]);
     const double ETA = ([=]() {
         if (MAG_RIGHT < MAG_LEFT) {
-            return static_cast<double>(N) / M_PI *
-                   std::atan(2 * std::sin(M_PI / static_cast<double>(N)) *
-                             MAG_PEAK / (MAG_LEFT + MAG_RIGHT));
+            return static_cast<double>(N) * std::numbers::inv_pi *
+                   std::atan(
+                       2 * std::sin(std::numbers::pi / static_cast<double>(N)) *
+                       MAG_LEFT * MAG_RIGHT / (MAG_LEFT + MAG_RIGHT) /
+                       MAG_PEAK);
         } else {
-            return static_cast<double>(N) / M_PI *
-                   std::atan(-2 * std::sin(M_PI / static_cast<double>(N)) *
-                             MAG_PEAK / (MAG_LEFT + MAG_RIGHT));
+            return static_cast<double>(N) * std::numbers::inv_pi *
+                   std::atan(
+                       -2 *
+                       std::sin(std::numbers::pi / static_cast<double>(N)) *
+                       MAG_LEFT * MAG_RIGHT / (MAG_LEFT + MAG_RIGHT) /
+                       MAG_PEAK);
         }
     })();
     // Initial delta (delta_0)
