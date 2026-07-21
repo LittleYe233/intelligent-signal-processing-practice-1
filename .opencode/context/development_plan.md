@@ -31,11 +31,12 @@
 
 | 项 | 现状 |
 |---|---|
-| `src/main.cpp` | 6 行 stub（`Hello, world!`） |
-| `include/` | 空目录（已通过 `target_include_directories` 接入主目标） |
+| `src/main.cpp` | 调用 `UiManager::run()` 启动 GUI |
+| `include/` | 已通过 `target_include_directories` 接入主目标 |
 | `test/` | 两个交互式 demo（`test_fft.cpp`、`test_implot.cpp`），不是单元测试；**不动** |
 | `third_party/` | `imgui` / `implot`（STATIC）、`pocketfft`（INTERFACE）已就位 |
-| Eigen | **由用户自行添加为 submodule 并接入 CMakeLists**（不在本计划范围内） |
+| Eigen | **已接入**（`third_party/eigen` submodule + CMake INTERFACE target） |
+| 构建配置 | Debug 模式额外添加 `-g` 编译选项（用户已在 CMakeLists.txt 中添加） |
 | 命名/风格 | 严格遵循 `AGENTS.md` 与 `.clang-tidy`（见 §13） |
 
 ---
@@ -644,14 +645,16 @@ private:
 | 错误回调 | `glfwSetErrorCallback` |
 | OpenGL | GL 3.0 + GLSL 130 |
 | DPI 提示 | `glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE)` |
-| 窗口尺寸 | `glfwGetPrimaryMonitor()` + `glfwGetVideoMode()` → 宽高 × 0.85 |
+| 窗口尺寸 | `glfwGetMonitorContentScale` 获取物理→逻辑像素比例；`glfwGetVideoMode` 宽高 ÷ 缩放比 × 0.85 |
 | DPI 读取 | `glfwGetWindowContentScale(window, &xscale, &yscale)` |
 | ImGui 风格 | `ImGui::StyleColorsDark()` + `StyleAllSizes(xscale)` |
 | 字体 | `AddFontFromFileTTF("C:\\Windows\\Fonts\\msyh.ttc", 14.0f * xscale)` |
 | 渲染适配 | `glfwGetFramebufferSize` + `glViewport`（同 test_implot） |
 | 文本 | 简体中文硬编码，无 i18n |
 
-> **字体路径硬编码为** `C:\Windows\Fonts\msyh.ttc`（Microsoft YaHei）。逻辑字号 14，按 DPI 物理放大。
+> **DPI 归一化说明**：`glfwGetVideoMode` 返回物理分辨率（如 3840×2160），
+> 需先通过 `glfwGetMonitorContentScale` 获取缩放比并除以缩放比得到逻辑像素，
+> 再按 85% 计算窗口尺寸，避免在高 DPI 显示器上窗口超出屏幕。
 
 ### 8.2 UI 模块
 
@@ -739,6 +742,10 @@ while (!glfwWindowShouldClose(window)):
 ```
 
 > **线程约定**：`ExperimentRunner::run()` 在独立 `std::thread` 中执行；UI 端仅在主线程读写 `RunResult`。`ProgressCallback` 通过原子或主循环 polling 传递进度。
+>
+> **异常防护**：后台线程中的 `ExperimentRunner::run()` 的整体调用包裹在 `try-catch` 中；
+> 捕获 `std::exception` 与未知异常，通过 `LogPanel::log()` 记录到 UI 日志面板，
+> 确保后台异常不会导致整个程序闪退。UI 主循环中的异常同理处理。
 
 ---
 
@@ -812,7 +819,6 @@ endif()
 | `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft） |
 | `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
 | `signal/signal_generator.{h,cpp}` | 全部（正弦生成 + 干扰叠加 + 噪声注入） |
-| `window/window.{h,cpp}` | 全部（四种窗函数系数） |
 | `metrics/*.{h,cpp}` | 全部（PercentageError / MSE / ComputeTime） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
@@ -824,6 +830,7 @@ endif()
 
 | 部分 | 责任方 |
 |---|---|
+| `window/window.{h,cpp}` | 用户（已完成） |
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
 | `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户（已完成） |
 | `estimator/music.cpp` / `esprit.cpp` | 用户 |

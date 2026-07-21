@@ -1,6 +1,7 @@
-#include <iostream>
+#include "ispp/ui/ui_manager.h"
 
 int main() {
-    std::cout << "Hello, world!" << '\n';
+    ispp::ui::UiManager app;
+    app.run();
     return 0;
 }

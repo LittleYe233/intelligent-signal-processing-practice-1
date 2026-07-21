@@ -22,6 +22,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-g)
+    endif()
+endif()
+
 # Set build type options
 if(CMAKE_BUILD_TYPE STREQUAL Release)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -109,8 +115,8 @@ set(ISPP_SOURCES
     # Estimator (M2)
     src/estimator/fft_peak.cpp
     src/estimator/fft_interpolate.cpp
-    # src/estimator/music.cpp
-    # src/estimator/esprit.cpp
+    src/estimator/music.cpp
+    src/estimator/esprit.cpp
     # Metrics
     src/metrics/percentage_error.cpp
     src/metrics/rmse.cpp
@@ -118,12 +124,11 @@ set(ISPP_SOURCES
     # Experiment (M1)
     src/experiment/statistics.cpp
     src/experiment/experiment_runner.cpp
-    # UI (M5+)
-    # src/ui/ui_manager.cpp
-    # src/ui/panels/config_panel.cpp
-    # src/ui/panels/spectrum_panel.cpp
-    # src/ui/panels/results_panel.cpp
-    # src/ui/panels/log_panel.cpp
+    src/ui/ui_manager.cpp
+    src/ui/panels/config_panel.cpp
+    src/ui/panels/spectrum_panel.cpp
+    src/ui/panels/results_panel.cpp
+    src/ui/panels/log_panel.cpp
 )
 
 add_executable(${PROJECT_NAME} ${ISPP_SOURCES})
