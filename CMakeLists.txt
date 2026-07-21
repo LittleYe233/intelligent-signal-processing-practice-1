@@ -11,11 +11,14 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Disable testing by default
+option(BUILD_TESTING OFF)
+
 # Build options
 option(ISPP_ENABLE_NATIVE OFF)
 option(ISPP_ENABLE_X86_64_V4 OFF)
 option(ISPP_ENABLE_X86_64_V3 OFF)
-option(ISPP_WIN32_GUI "Build as windowed GUI app (no console)" OFF)
+option(ISPP_WIN32_GUI "Build as windowed GUI app (no console)" ON)
 
 # MSYS2/GCC 16 warning flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -49,11 +52,6 @@ elseif(ISPP_ENABLE_X86_64_V3)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         add_compile_options(-march=x86-64-v3 -mtune=x86-64-v3)
     endif()
-endif()
-
-# Windows specific flag: Hides the console window for GUI mode
-if(ISPP_WIN32_GUI)
-    set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -96,8 +94,10 @@ target_include_directories(Eigen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_par
 # ---------------------------------------------------------------------------
 # Testing
 # ---------------------------------------------------------------------------
-enable_testing()
-add_subdirectory(test)
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(test)
+endif()
 
 # ---------------------------------------------------------------------------
 # Main Application Target
@@ -136,5 +136,10 @@ add_executable(${PROJECT_NAME} ${ISPP_SOURCES})
 # Setup include directories for our own code
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# # Link dependencies
+# Link dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw3 OpenGL::GL imgui implot PocketFFT Eigen)
+
+# Windows specific flag: Hides the console window for GUI mode
+if(ISPP_WIN32_GUI)
+    set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
