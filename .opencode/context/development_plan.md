@@ -238,7 +238,7 @@ struct EnvSpec {
 } // namespace ispp
 ```
 
-### 5.3 `include/ispp/core/rng.h`
+### 5.3 `include/ispp/core/rng.h`（**完整实现**）
 
 ```cpp
 #pragma once
@@ -253,14 +253,17 @@ class Rng {
 public:
     explicit Rng(std::uint64_t seed);
 
-    /// @todo 提供各分布抽样接口：normal / uniform / laplace / impulse
-    ///   - double normal(double mean, double stddev);
-    ///   - double uniform(double lo, double hi);
-    ///   - double laplace(double mean, double scale);
-    ///   - double impulse(double p, double magnitude);
+    /// 高斯分布 ~ N(mean, stddev²)
+    double normal(double mean, double stddev);
+    /// 均匀分布 ~ U(lo, hi)
+    double uniform(double lo, double hi);
+    /// 拉普拉斯分布（双指数分布），阶数 scale
+    double laplace(double mean, double scale);
+    /// 脉冲噪声：以概率 p 返回 magnitude，否则返回 0
+    double impulse(double p, double magnitude);
 
 private:
-    std::mt19937_64 engine_;
+    std::mt19937_64 Engine;
 };
 
 } // namespace ispp
@@ -805,6 +808,7 @@ endif()
 | 部分 | 完整实现范围 |
 |---|---|
 | `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft） |
+| `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
 | `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
@@ -815,7 +819,6 @@ endif()
 
 | 部分 | 责任方 |
 |---|---|
-| `core/rng.cpp` 各分布抽样接口实现 | 用户 |
 | `window/window.cpp` 各窗函数系数 | 用户 |
 | `signal/signal_generator.cpp` 合成流水线 | 用户 |
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
