@@ -1,5 +1,4 @@
 #include "ispp/estimator/fft_peak.h"
-
 #include "ispp/core/fft.h"
 
 namespace ispp {

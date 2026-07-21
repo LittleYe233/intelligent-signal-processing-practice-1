@@ -1,12 +1,10 @@
 #include "ispp/core/fft.h"
-
-#include <pocketfft_hdronly.h>
-
 #include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstddef>
 #include <exception>
+#include <pocketfft_hdronly.h>
 #include <vector>
 
 namespace ispp {
