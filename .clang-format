@@ -4,3 +4,7 @@ Standard: c++20
 AccessModifierOffset: -4
 IndentWidth: 4
 TabWidth: 4
+
+# NOTE: *.tpp files are included by *.h and share the same formatting rules.
+# Run clang-format on .tpp files with: -assume-filename=peak_finder.h
+# This ensures clang-format recognizes them as C++ headers.

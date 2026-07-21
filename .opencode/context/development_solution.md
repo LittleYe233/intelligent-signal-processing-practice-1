@@ -2,8 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.0 |
+| 文档版本 | v1.1 |
 | 制定日期 | 2026-07-19 |
+| 最近修订 | 2026-07-21（新增 `core/peak_finder` 公共工具，见 §5.5） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -56,7 +57,7 @@
 │ Signal      src/signal      信号生成 / 加噪 / 加干扰        │
 │ Window      src/window      窗函数                         │
 ├──────────────────────────────────────────────────────────┤
-│ Core        include/ispp/core  类型 / 参数 / 工具          │
+│ Core        include/ispp/core  类型 / 参数 / 工具（含 PeakFinder）│
 ├──────────────────────────────────────────────────────────┤
 │ 第三方      PocketFFT | Eigen（用户接入） | ImGui/ImPlot    │
 └──────────────────────────────────────────────────────────┘
@@ -77,7 +78,9 @@ intelligent-signal-processing-practice-1/
 │       │   ├── types.h             ← RealArray, ComplexArray, FrequencyPeak, EstimationResult
 │       │   ├── parameters.h        ← SignalSpec / WindowSpec / NoiseSpec / InterferenceSpec / EnvSpec
 │       │   ├── rng.h               ← 统一随机数生成器封装（支持种子复现）
-│       │   └── fft.h               ← 公共 FFT 工具：computeDft / findPeaksFromDft
+│       │   ├── fft.h               ← 公共 FFT 工具：computeDft / findPeaksFromDft
+│       │   ├── peak_finder.h       ← 通用一维寻峰模板工具（PeakFinder<T>），fft / estimator 共用
+│       │   └── peak_finder.tpp     ← PeakFinder 模板实现（由 .h 末尾包含，不参与 target_sources）
 │       ├── window/
 │       │   └── window.h            ← WindowKind enum + applyWindow()
 │       ├── signal/
@@ -294,14 +297,151 @@ ComplexArray computeDft(const RealArray& input);
 
 /// @brief 从复数 DFT 幅度谱中提取局部极大值峰值。
 ///
-/// threshold_factor 为相对最大幅值的比率阈值；
-/// bin_hz = sample_rate / N；最多返回 max_peak_count 个峰。
+/// 实现委托给 `PeakFinder<double>::findPeaks`（见 §5.5）：
+///   1. 计算 `|dft[i]|` 得到线性幅度数组 `mags`；
+///   2. 调用 `PeakFinder<double>::findPeaks(mags, kernel_size, margin,
+///      min_prominence, min_width)`；
+///   3. 将返回的 `Peak::Index` 映射为
+///      `FrequencyPeak{ .FrequencyHz = idx * bin_hz,
+///                      .Amplitude   = mags[idx] }`；
+///   4. 若返回峰数 > `max_peak_count`，按 `Prominence` 降序截取前 N 个。
+///
+/// **旧参数 → 新参数映射**（仅供实现参考，签名保持稳定）：
+///   - `threshold_factor` → 内部转换为 `margin` 与 `min_prominence`
+///     （相对全局最大幅度的工程合理默认值）；
+///   - `max_peak_count` → 后置截断步骤（按 `Prominence` 降序）。
+///
+/// @warning 公开签名保持不变，所有现有调用方
+/// （`FftPeakEstimator` / `FftInterpolateEstimator` /
+/// `ExperimentRunner` 频谱快照）零改动。需要精细控制
+/// (kernel/margin/prominence/width) 的调用方应直接使用 `PeakFinder`。
+///
+/// @param dft 单边复数 DFT（通常来自 computeDft）。
+/// @param threshold_factor 相对最大幅值的比率阈值，范围建议 [0, 1]。
+/// @param bin_hz 频率分辨率 Hz/bin（= sample_rate / N）。
+/// @param max_peak_count 最多返回的峰值个数。
+/// @return 频率-幅度对列表；dft 为空时返回空列表。
 std::vector<FrequencyPeak>
 findPeaksFromDft(const ComplexArray& dft, double threshold_factor,
                  double bin_hz, std::size_t max_peak_count);
 
 } // namespace ispp
 ```
+
+### 5.5 `include/ispp/core/peak_finder.h`（**完整实现**）
+
+通用一维数据寻峰工具，与具体物理量（频率/幅度/相位）解耦。除供 §5.4
+`findPeaksFromDft` 委托外，MUSIC/ESPRIT 的伪谱寻峰（§6.3）以及未来
+维度扫描可视化均可直接复用，无需重复实现寻峰逻辑。
+
+#### 5.5.1 接口签名
+
+```cpp
+#pragma once
+
+#include <concepts>
+#include <cstddef>
+#include <span>
+#include <vector>
+
+namespace ispp {
+
+template <std::floating_point T>
+class PeakFinder {
+public:
+    /// 寻峰结果。仅承载算法输出（下标 + 突出度），
+    /// 调用方可按需通过 `data[peak.Index]` 取回幅值。
+    struct Peak {
+        std::size_t Index;
+        T Prominence;
+    };
+
+    /// @brief 寻找峰值的唯一公开接口。
+    ///
+    /// 流水线（详见 §5.5.3）：
+    ///   中值滤波底噪 → 候选局部极大值 → margin 阈值
+    ///   → prominence ≥ min_prominence → FWHM ≥ min_width
+    ///
+    /// @param data           输入的一维线性连续数据视图。
+    /// @param kernel_size    中值滤波窗口大小（建议奇数，如 31）。
+    /// @param margin         加在底噪（中值滤波结果）之上的固定安全裕度
+    ///                       （线性阈值偏移）。
+    /// @param min_prominence 峰值最小突出度。
+    /// @param min_width      主瓣最小半高全宽（FWHM），默认 1.0。
+    /// @return 满足全部条件的峰值数组，按下标升序。
+    static std::vector<Peak> findPeaks(std::span<const T> data,
+                                       std::size_t kernel_size,
+                                       T margin,
+                                       T min_prominence,
+                                       T min_width = static_cast<T>(1.0));
+
+private:
+    // 滑窗中值滤波，作为底噪估计；边界处窗口收缩（不补零）。
+    static std::vector<T> calcMedianFilter(std::span<const T> data,
+                                           std::size_t kernel_size);
+
+    // 计算峰值突出度（topographic prominence）：
+    // 左右各向外搜索至鞍点，取两侧较高包络线之差。
+    static T calcProminence(std::span<const T> data,
+                            std::size_t peak_idx);
+
+    // 计算 FWHM：以 prominence 半高做左右交叉点搜索，
+    // 使用局部线性插值获得亚下标精度；返回宽度（单位为下标间距）。
+    static T calcWidth(std::span<const T> data,
+                       std::size_t peak_idx,
+                       T prominence);
+};
+
+} // namespace ispp
+
+#include "ispp/core/peak_finder.tpp"
+```
+
+> **签名说明**（相对参考签名的两处 C++ 合规修正）：
+> 1. 移除 `static ... findPeaks(...) const` 末尾的 `const` ——
+>    静态成员函数不可带 cv 限定符（参考签名存在该错误）。
+> 2. 私有辅助函数 `calcMedianFilter` / `calcProminence` / `calcWidth`
+>    统一声明为 `static` —— 与公开接口一致；类无任何实例状态，
+>    所有方法均为输入数据的纯函数。
+>
+> **命名**严格遵循 `.clang-tidy`：
+> - 成员 / 嵌套类型 → `CamelCase`（`Peak`、`Index`、`Prominence`）
+> - 函数 → `camelBack`（`findPeaks`、`calcMedianFilter`、`calcProminence`、`calcWidth`）
+> - 模板参数 → `CamelCase` 单字母（`T`）
+> - 参数 / 局部变量 → `lower_case`（`data`、`kernel_size`、`peak_idx`）
+
+#### 5.5.2 模板文件组织
+
+模板实现放在 `include/ispp/core/peak_finder.tpp`，由 `peak_finder.h` 在
+关闭 `namespace ispp` 之后、`#endif` 之前通过 `#include` 引入
+（见上方签名末尾）。该 `.tpp` 文件**不参与 `target_sources`**，仅作头文件
+片段被传递包含；保持 header-only 模板语义，避免显式实例化的翻译单元耦合。
+建议在 `.clang-format` 与 `.clang-tidy` 中将 `peak_finder.tpp` 视作 C++ 头文件。
+
+#### 5.5.3 算法流水线
+
+```text
+findPeaks(data, kernel_size, margin, min_prominence, min_width):
+  1. baseline = calcMedianFilter(data, kernel_size)
+  2. candidates = [ i | 0 < i < n-1,
+                       data[i] > data[i-1] && data[i] > data[i+1],
+                       data[i] - baseline[i] >= margin ]
+  3. for each i in candidates:
+       p = calcProminence(data, i)
+       if p < min_prominence: skip
+       w = calcWidth(data, i, p)
+       if w < min_width: skip
+       emit Peak{ .Index = i, .Prominence = p }
+  4. return emitted peaks, sorted by Index ascending
+```
+
+- **中值滤波**对尖峰扰动具有鲁棒性，提供平滑的底噪参考；
+  边界处窗口自动收缩以避免越界。
+- **Prominence** 采用拓扑定义（左右各向外搜索至第一个高于当前峰的参考，
+  之间取最低鞍点；prominence = data[peak] - max(left_saddle, right_saddle)），
+  比单纯"高出底噪多少"更能区分真实主瓣与旁瓣。
+- **FWHM** 使用局部线性插值获得亚下标精度，避免主瓣被误判为过窄
+  （`min_width = 1.0` 默认值即"至少 1 个 bin 宽"）。
 
 ---
 
@@ -442,6 +582,13 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 
 > 单频是 `frequencyCount == 1` 的特例。
 > 推荐流水线：`computeDft(input)` → `findPeaksFromDft(...)` →（可选）插值/子空间精修。
+>
+> **MUSIC / ESPRIT 的伪谱寻峰**：在伪谱（pseudospectrum）数组生成后，
+> 应直接调用 `PeakFinder<double>::findPeaks(pseudospectrum, ...)`（§5.5），
+> 而非把伪谱塞进 `findPeaksFromDft` —— `findPeaksFromDft` 内部会做
+> `|dft[i]|` 复数取模，对已经是线性实数的伪谱是错误的额外步骤。
+> 直接使用 `PeakFinder` 可获得完整的 (kernel_size / margin /
+> min_prominence / min_width) 调参能力。
 
 ### 6.4 Metrics（**完整实现**）
 
@@ -816,7 +963,8 @@ endif()
 
 | 部分 | 完整实现范围 |
 |---|---|
-| `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft） |
+| `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft；后者委托 PeakFinder） |
+| `core/peak_finder.{h,tpp}` | 全部（通用一维寻峰模板：findPeaks + 中值滤波 / prominence / FWHM） |
 | `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
 | `signal/signal_generator.{h,cpp}` | 全部（正弦生成 + 干扰叠加 + 噪声注入） |
 | `metrics/*.{h,cpp}` | 全部（PercentageError / MSE / ComputeTime） |
@@ -863,6 +1011,9 @@ endif()
 | OQ-5 | 算法时间测量边界 | **计入窗函数施加时间**（窗属于信号预处理） |
 | OQ-6 | 多峰误差匹配 | 与 `peaks` 中**误差最小的峰**比较 |
 | OQ-7 | `WIN32_EXECUTABLE` | 用 CMake option `ISPP_WIN32_GUI` 控制；开发期默认 OFF（保留 console），发布期 ON |
+| OQ-8 | `PeakFinder` 位置与 API 形态 | 放置于 `include/ispp/core/peak_finder.h`（Core 层"工具"职责）；类模板 `template <std::floating_point T>`；**所有方法均为 `static`**（修正参考签名中 `static ... const` 的 C++ 合规问题）；无实例状态，通过 `PeakFinder<double>::findPeaks(...)` 调用 |
+| OQ-9 | `findPeaksFromDft` 签名稳定性 | **公开签名保持不变**（`threshold_factor` + `max_peak_count`）；实现内部委托 `PeakFinder<double>::findPeaks`，旧参数映射为 (margin, min_prominence) 与后置截断；调用方零改动 |
+| OQ-10 | `PeakFinder` 模板文件组织 | 实现 `.tpp` 由 `.h` 末尾 `#include` 引入（header-only 模板）；`.tpp` 不参与 `target_sources`；CMake 无需改动（`include/` 已在 include path） |
 
 ---
 

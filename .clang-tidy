@@ -72,3 +72,4 @@ CheckOptions:
 
 # Ignore third-party and UI layout headers
 HeaderFilterRegex: '^(src|include|test)/.*'
+HeaderFileExtensions: ['h', 'hh', 'hpp', 'hxx', 'tpp']
