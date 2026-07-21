@@ -1,23 +1,22 @@
 #include "ispp/ui/panels/spectrum_panel.h"
-
-#include <imgui.h>
-#include <implot.h>
-
+#include "ispp/i18n.h"
 #include <algorithm>
 #include <cmath>
+#include <imgui.h>
+#include <implot.h>
 #include <vector>
 
 namespace ispp::ui {
 
 void SpectrumPanel::render(const std::optional<RunResult> &result) {
-    if (!ImGui::Begin("Spectrum")) {
+    if (!ImGui::Begin(_UI("Single Simulation"))) {
         ImGui::End();
         return;
     }
 
     if (!result || result->LastInputSignal.empty()) {
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1),
-                           "No data — run an experiment first.");
+                           _UI("No data — run an experiment first."));
         ImGui::End();
         return;
     }
@@ -27,10 +26,10 @@ void SpectrumPanel::render(const std::optional<RunResult> &result) {
     const std::size_t OUT_SIZE = res.LastSpectrumFreqHz.size();
 
     // ---- Time-domain signal ----
-    if (ImPlot::BeginPlot("Time Domain", ImVec2(-1, 200))) {
-        ImPlot::SetupAxis(ImAxis_X1, "Sample");
-        ImPlot::SetupAxis(ImAxis_Y1, "Amplitude");
-        ImPlot::PlotLine("Input", res.LastInputSignal.data(),
+    if (ImPlot::BeginPlot(_UI("Waveform"), ImVec2(-1, 200))) {
+        ImPlot::SetupAxis(ImAxis_X1, _UI("Sample"));
+        ImPlot::SetupAxis(ImAxis_Y1, _UI("Amplitude"));
+        ImPlot::PlotLine(_UI("Input"), res.LastInputSignal.data(),
                          static_cast<int>(N));
         ImPlot::EndPlot();
     }
@@ -42,17 +41,17 @@ void SpectrumPanel::render(const std::optional<RunResult> &result) {
         mag_db[k] = (m > 1e-15) ? 20.0 * std::log10(m) : -300.0;
     }
 
-    if (ImPlot::BeginPlot("Spectrum (dB)", ImVec2(-1, 280))) {
-        ImPlot::SetupAxis(ImAxis_X1, "Frequency (Hz)");
-        ImPlot::SetupAxis(ImAxis_Y1, "Magnitude (dB)");
+    if (ImPlot::BeginPlot(_UI("Spectrum"), ImVec2(-1, 280))) {
+        ImPlot::SetupAxis(ImAxis_X1, _UI("Frequency (Hz)"));
+        ImPlot::SetupAxis(ImAxis_Y1, _UI("Magnitude (dB)"));
 
-        ImPlot::PlotLine("Spectrum", res.LastSpectrumFreqHz.data(),
+        ImPlot::PlotLine(_UI("Spectrum"), res.LastSpectrumFreqHz.data(),
                          mag_db.data(), static_cast<int>(OUT_SIZE));
 
         // True frequency reference line (vertical)
         if (res.LastTrueFrequencyHz > 0) {
             double true_freq = res.LastTrueFrequencyHz;
-            ImPlot::PlotInfLines("True Freq", &true_freq, 1);
+            ImPlot::PlotInfLines(_UI("True Freq"), &true_freq, 1);
         }
 
         // Estimated peaks as scatter
@@ -71,7 +70,8 @@ void SpectrumPanel::render(const std::optional<RunResult> &result) {
                 double m = res.LastSpectrumMag[idx];
                 peak_dbs[i] = (m > 1e-15) ? 20.0 * std::log10(m) : -300.0;
             }
-            ImPlot::PlotScatter("Peaks", peak_freqs.data(), peak_dbs.data(),
+            ImPlot::PlotScatter(_UI("Peaks"), peak_freqs.data(),
+                                peak_dbs.data(),
                                 static_cast<int>(peak_freqs.size()));
         }
 

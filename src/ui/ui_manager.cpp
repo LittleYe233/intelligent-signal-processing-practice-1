@@ -1,16 +1,13 @@
 #include "ispp/ui/ui_manager.h"
-
 #include "ispp/experiment/experiment_runner.h"
-
+#include <GLFW/glfw3.h>
+#include <cstdio>
+#include <format>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
-
-#include <GLFW/glfw3.h>
-
-#include <chrono>
-#include <cstdio>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
@@ -77,6 +74,8 @@ void UiManager::initGlfw() {
                                  monitor_scale_x * 0.85);
     int win_h = static_cast<int>(static_cast<double>(mode->height) /
                                  monitor_scale_y * 0.85);
+    std::cout << std::format("win=({}, {}) monitor_scale=({}, {})\n", win_w,
+                             win_h, monitor_scale_x, monitor_scale_y);
 
     Window = glfwCreateWindow(win_w, win_h,
                               "ISPPracticeOne — Signal "
@@ -103,13 +102,14 @@ void UiManager::initImGui() {
     // DPI scaling
     float xscale, yscale;
     glfwGetWindowContentScale(Window, &xscale, &yscale);
+    std::cout << std::format("win_scale=({}, {})\n", xscale, yscale);
     ImGui::StyleColorsDark();
     ImGui::GetStyle().ScaleAllSizes(xscale);
 
     // Chinese font (Microsoft YaHei)
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF(R"(C:\Windows\Fonts\msyh.ttc)",
-                                 14.0f * xscale);
+    io.Fonts->AddFontFromFileTTF(R"(C:\Windows\Fonts\msyh.ttc)", 16.0f);
+    ImGui::GetStyle().FontScaleMain = 1.5;
 
     // ImGui backends
     ImGui_ImplGlfw_InitForOpenGL(Window, true);

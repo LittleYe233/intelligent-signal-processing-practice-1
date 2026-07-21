@@ -1,0 +1,268 @@
+# Chinese translations for PACKAGE package.
+# Copyright (C) 2026 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# <EMAIL@ADDRESS>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-22 07:43+0800\n"
+"PO-Revision-Date: 2026-07-22 01:13+0800\n"
+"Last-Translator: <EMAIL@ADDRESS>\n"
+"Language-Team: Chinese (simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:22
+msgid "Rectangular"
+msgstr "矩形窗"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:22
+msgid "Hamming"
+msgstr "汉明窗"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:23
+msgid "Hann"
+msgstr "汉宁窗"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:23
+msgid "Blackman"
+msgstr "布莱克曼窗"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:24
+msgid "Gaussian"
+msgstr "高斯分布"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:24
+msgid "Uniform"
+msgstr "均匀分布"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:25
+msgid "Laplacian"
+msgstr "拉普拉斯分布"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:25
+msgid "Impulse"
+msgstr "脉冲分布"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:26
+msgid "FFT Peak"
+msgstr "FFT直接峰值法"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:26
+msgid "FFT Interpolate"
+msgstr "FFT插值法"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:27
+msgid "MUSIC"
+msgstr "MUSIC算法"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:27
+msgid "ESPRIT"
+msgstr "ESPRIT算法"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:28
+msgid "Percentage Error"
+msgstr "百分比误差"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:28
+msgid "MSE"
+msgstr "均方误差"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:29
+msgid "Compute Time"
+msgstr "计算时间"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:31
+msgid "Configuration"
+msgstr "配置"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:37
+msgid "Signal"
+msgstr "信号"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:40
+msgid "Sample Rate (Hz)"
+msgstr "采样率 (Hz)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:42
+msgid "Sample Count"
+msgstr "采样个数"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:44
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:45
+msgid "Frequency (Hz)"
+msgstr "频率 (Hz)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:46
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:82
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:31
+msgid "Amplitude"
+msgstr "振幅"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:48
+msgid "Phase (rad)"
+msgstr "相位 (rad)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:54
+msgid "Noise"
+msgstr "噪声"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:56
+msgid "Distribution"
+msgstr "分布"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:59
+msgid "SNR (dB)"
+msgstr "信噪比 (dB)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:66
+msgid "Window"
+msgstr "窗函数"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:69
+msgid "Kind"
+msgstr "类型"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:75
+msgid "Interference"
+msgstr "干扰"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:79
+msgid "Delta (bins)"
+msgstr "频偏 (bins)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:88
+msgid "Estimator"
+msgstr "估计器"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:89
+msgid "Algorithm"
+msgstr "算法"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:91
+msgid "Max Frequency Count"
+msgstr "最大峰数"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:94
+msgid "Monte Carlo"
+msgstr "蒙特卡洛模拟"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:95
+msgid "Iterations"
+msgstr "迭代次数"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:97
+msgid "Base Seed"
+msgstr "随机数种子"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:100
+msgid "Metrics"
+msgstr "评估指标"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:107
+msgid "Running..."
+msgstr "运行中..."
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:108
+msgid "Run Experiment"
+msgstr "运行实验"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\log_panel.cpp:21
+msgid "Log"
+msgstr "日志"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\log_panel.cpp:26
+msgid "Clear"
+msgstr "清除"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\log_panel.cpp:30
+msgid "Console output (ring buffer)"
+msgstr "控制台输出"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:8
+msgid "Results & Metrics"
+msgstr "结果和评估指标"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:15
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:19
+msgid "No data — run an experiment first."
+msgstr "没有数据 — 先运行一次实验"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:23
+#, c-format
+msgid "Total Runtime: %.3f s"
+msgstr "总运行时长: %.3f 秒"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:27
+msgid "(no metrics configured)"
+msgstr "(没有配置评估指标)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:37
+msgid "Metric"
+msgstr "指标"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:38
+msgid "Mean"
+msgstr "均值"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:39
+msgid "Std"
+msgstr "标准差"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:40
+msgid "Min"
+msgstr "最小"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:41
+msgid "Max"
+msgstr "最大"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:63
+msgid "Last iteration:"
+msgstr "最后一次迭代:"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:66
+#, c-format
+msgid "  Peak %zu: %.3f Hz  (amp = %.4e)"
+msgstr "  峰 %zu: %.3f Hz  (幅值 = %.4e)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:71
+msgid "  (no peaks detected)"
+msgstr "  (未检测到峰)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:12
+msgid "Single Simulation"
+msgstr "单次仿真"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:29
+msgid "Waveform"
+msgstr "波形图"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:30
+msgid "Sample"
+msgstr "采样点"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:32
+msgid "Input"
+msgstr "输入"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:44
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:48
+msgid "Spectrum"
+msgstr "频谱"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:46
+msgid "Magnitude (dB)"
+msgstr "强度 (dB)"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:54
+msgid "True Freq"
+msgstr "真实频率"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:73
+msgid "Peaks"
+msgstr "峰值"

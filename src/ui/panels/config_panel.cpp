@@ -4,104 +4,108 @@
 #include "ispp/estimator/fft_interpolate.h"
 #include "ispp/estimator/fft_peak.h"
 #include "ispp/estimator/music.h"
+#include "ispp/i18n.h"
 #include "ispp/metrics/compute_time.h"
 #include "ispp/metrics/percentage_error.h"
 #include "ispp/metrics/rmse.h"
 #include "ispp/ui/widgets/enum_combo.h"
 #include <array>
+#include <cstddef>
 #include <imgui.h>
 
 namespace ispp::ui {
 
-static constexpr std::array WINDOW_NAMES = {"Rectangular", "Hamming", "Hann",
-                                            "Blackman"};
-static constexpr std::array NOISE_NAMES = {"Gaussian", "Uniform", "Laplacian",
-                                           "Impulse"};
-static constexpr std::array ALGO_NAMES = {"FFT Peak", "FFT Interpolate",
-                                          "MUSIC", "ESPRIT"};
-static constexpr std::array METRIC_NAMES = {"Percentage Error", "MSE",
-                                            "Compute Time"};
-
 void ConfigPanel::render(ExperimentConfig &config, RunState &state,
                          std::shared_ptr<IEstimator> &estimator,
                          std::vector<std::shared_ptr<IMetric>> &metrics) {
-    if (!ImGui::Begin("Configuration")) {
+
+    static std::array window_names = {_UI("Rectangular"), _UI("Hamming"),
+                                      _UI("Hann"), _UI("Blackman")};
+    static std::array noise_names = {_UI("Gaussian"), _UI("Uniform"),
+                                     _UI("Laplacian"), _UI("Impulse")};
+    static std::array algo_names = {_UI("FFT Peak"), _UI("FFT Interpolate"),
+                                    _UI("MUSIC"), _UI("ESPRIT")};
+    static std::array metric_names = {_UI("Percentage Error"), _UI("MSE"),
+                                      _UI("Compute Time")};
+
+    if (!ImGui::Begin(_UI("Configuration"))) {
         ImGui::End();
         return;
     }
 
     // ---- Signal parameters ----
-    if (ImGui::CollapsingHeader("Signal", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader(_UI("Signal"),
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID("Signal");
-        ImGui::InputDouble("Sample Rate (Hz)", &config.Signal.SampleRateHz,
+        ImGui::InputDouble(_UI("Sample Rate (Hz)"), &config.Signal.SampleRateHz,
                            1000.0, 10000.0, "%.0f");
-        ImGui::InputScalar("Sample Count", ImGuiDataType_U64,
+        ImGui::InputScalar(_UI("Sample Count"), ImGuiDataType_U64,
                            &config.Signal.SampleCount);
-        ImGui::InputDouble("Frequency (Hz)", &config.Signal.FrequencyHz, 1.0,
-                           10.0, "%.1f");
-        ImGui::InputDouble("Amplitude", &config.Signal.Amplitude, 0.1, 1.0,
+        ImGui::InputDouble(_UI("Frequency (Hz)"), &config.Signal.FrequencyHz,
+                           1.0, 10.0, "%.1f");
+        ImGui::InputDouble(_UI("Amplitude"), &config.Signal.Amplitude, 0.1, 1.0,
                            "%.2f");
-        ImGui::InputDouble("Phase (rad)", &config.Signal.PhaseRad, 0.1, 1.0,
-                           "%.3f");
+        ImGui::InputDouble(_UI("Phase (rad)"), &config.Signal.PhaseRad, 0.1,
+                           1.0, "%.3f");
         ImGui::PopID();
     }
 
     // ---- Noise ----
-    if (ImGui::CollapsingHeader("Noise", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader(_UI("Noise"), ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID("Noise");
-        enumCombo("Distribution", &config.Env.Noise.Distribution,
-                  NOISE_NAMES.data(), static_cast<int>(NOISE_NAMES.size()));
-        double snr_min = -20.0, snr_max = 30.0;
-        ImGui::SliderScalar("SNR (dB)", ImGuiDataType_Double,
-                            &config.Env.Noise.SnrDb, &snr_min, &snr_max,
+        enumCombo(_UI("Distribution"), &config.Env.Noise.Distribution,
+                  noise_names.data(), static_cast<int>(noise_names.size()));
+        static constexpr double SNR_MIN = -20.0, SNR_MAX = 30.0;
+        ImGui::SliderScalar(_UI("SNR (dB)"), ImGuiDataType_Double,
+                            &config.Env.Noise.SnrDb, &SNR_MIN, &SNR_MAX,
                             "%.1f");
         ImGui::PopID();
     }
 
     // ---- Window ----
-    if (ImGui::CollapsingHeader("Window", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader(_UI("Window"),
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID("Window");
-        enumCombo("Kind", &config.Env.Window.Kind, WINDOW_NAMES.data(),
-                  static_cast<int>(WINDOW_NAMES.size()));
+        enumCombo(_UI("Kind"), &config.Env.Window.Kind, window_names.data(),
+                  static_cast<int>(window_names.size()));
         ImGui::PopID();
     }
 
     // ---- Interference ----
-    if (ImGui::CollapsingHeader("Interference",
+    if (ImGui::CollapsingHeader(_UI("Interference"),
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID("Interference");
-        double delta_min = -2.0, delta_max = 2.0;
-        ImGui::SliderScalar("Delta (bins)", ImGuiDataType_Double,
-                            &config.Env.Interference.DeltaBins, &delta_min,
-                            &delta_max, "%.2f");
-        ImGui::InputDouble("Amplitude", &config.Env.Interference.Amplitude, 0.1,
-                           1.0, "%.2f");
+        static constexpr double DELTA_MIN = -2.0, DELTA_MAX = 2.0;
+        ImGui::SliderScalar(_UI("Delta (bins)"), ImGuiDataType_Double,
+                            &config.Env.Interference.DeltaBins, &DELTA_MIN,
+                            &DELTA_MAX, "%.2f");
+        ImGui::InputDouble(_UI("Amplitude"), &config.Env.Interference.Amplitude,
+                           0.1, 1.0, "%.2f");
         ImGui::PopID();
     }
 
     // ---- Algorithm & config ----
-    ImGui::SeparatorText("Estimator");
-    ImGui::Combo("Algorithm", &SelectedAlgorithm, ALGO_NAMES.data(),
-                 static_cast<int>(ALGO_NAMES.size()));
-    ImGui::InputScalar("Max Frequency Count", ImGuiDataType_U64,
+    ImGui::SeparatorText(_UI("Estimator"));
+    ImGui::Combo(_UI("Algorithm"), &SelectedAlgorithm, algo_names.data(),
+                 static_cast<int>(algo_names.size()));
+    ImGui::InputScalar(_UI("Max Frequency Count"), ImGuiDataType_U64,
                        &config.MaxFreqCount);
 
-    ImGui::SeparatorText("Monte Carlo");
-    ImGui::InputScalar("Iterations", ImGuiDataType_U64,
+    ImGui::SeparatorText(_UI("Monte Carlo"));
+    ImGui::InputScalar(_UI("Iterations"), ImGuiDataType_U64,
                        &config.MonteCarlo.IterationCount);
-    ImGui::InputScalar("Base Seed", ImGuiDataType_U64,
+    ImGui::InputScalar(_UI("Base Seed"), ImGuiDataType_U64,
                        &config.MonteCarlo.BaseSeed);
 
-    ImGui::SeparatorText("Metrics");
-    for (int i = 0; i < 3; ++i)
-        ImGui::Checkbox(METRIC_NAMES[static_cast<std::size_t>(i)],
-                        &MetricsMask[static_cast<std::size_t>(i)]);
+    ImGui::SeparatorText(_UI("Metrics"));
+    for (size_t i = 0; i < metric_names.size(); ++i)
+        ImGui::Checkbox(metric_names[i], &MetricsMask[i]);
 
     // ---- Run button ----
     ImGui::Separator();
     if (state.Running) {
-        ImGui::ProgressBar(state.Progress, ImVec2(-1, 0), "Running...");
-    } else if (ImGui::Button("Run Experiment", ImVec2(-1, 36))) {
+        ImGui::ProgressBar(state.Progress, ImVec2(-1, 0), _UI("Running..."));
+    } else if (ImGui::Button(_UI("Run Experiment"), ImVec2(-1, 36))) {
         const double THRESHOLD = 0.0;
         switch (SelectedAlgorithm) {
         case 0:

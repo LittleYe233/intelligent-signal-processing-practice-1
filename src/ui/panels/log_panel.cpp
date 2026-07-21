@@ -1,5 +1,5 @@
 #include "ispp/ui/panels/log_panel.h"
-
+#include "ispp/i18n.h"
 #include <imgui.h>
 
 namespace ispp::ui {
@@ -18,16 +18,16 @@ void LogPanel::log(std::string_view msg) {
 }
 
 void LogPanel::render() {
-    if (!ImGui::Begin("Log")) {
+    if (!ImGui::Begin(_UI("Log"))) {
         ImGui::End();
         return;
     }
 
-    if (ImGui::SmallButton("Clear")) {
+    if (ImGui::SmallButton(_UI("Clear"))) {
         clear();
     }
     ImGui::SameLine();
-    ImGui::TextUnformatted("Console output (ring buffer)");
+    ImGui::TextUnformatted(_UI("Console output (ring buffer)"));
 
     ImGui::Separator();
     ImGui::BeginChild("log_scroll", ImVec2(0, 0), false,

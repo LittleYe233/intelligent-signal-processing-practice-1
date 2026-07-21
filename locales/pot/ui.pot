@@ -1,0 +1,269 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-22 07:43+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:22
+msgid "Rectangular"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:22
+msgid "Hamming"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:23
+msgid "Hann"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:23
+msgid "Blackman"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:24
+msgid "Gaussian"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:24
+msgid "Uniform"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:25
+msgid "Laplacian"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:25
+msgid "Impulse"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:26
+msgid "FFT Peak"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:26
+msgid "FFT Interpolate"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:27
+msgid "MUSIC"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:27
+msgid "ESPRIT"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:28
+msgid "Percentage Error"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:28
+msgid "MSE"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:29
+msgid "Compute Time"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:31
+msgid "Configuration"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:37
+msgid "Signal"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:40
+msgid "Sample Rate (Hz)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:42
+msgid "Sample Count"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:44
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:45
+msgid "Frequency (Hz)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:46
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:82
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:31
+msgid "Amplitude"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:48
+msgid "Phase (rad)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:54
+msgid "Noise"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:56
+msgid "Distribution"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:59
+msgid "SNR (dB)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:66
+msgid "Window"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:69
+msgid "Kind"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:75
+msgid "Interference"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:79
+msgid "Delta (bins)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:88
+msgid "Estimator"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:89
+msgid "Algorithm"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:91
+msgid "Max Frequency Count"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:94
+msgid "Monte Carlo"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:95
+msgid "Iterations"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:97
+msgid "Base Seed"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:100
+msgid "Metrics"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:107
+msgid "Running..."
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\config_panel.cpp:108
+msgid "Run Experiment"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\log_panel.cpp:21
+msgid "Log"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\log_panel.cpp:26
+msgid "Clear"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\log_panel.cpp:30
+msgid "Console output (ring buffer)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:8
+msgid "Results & Metrics"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:15
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:19
+msgid "No data — run an experiment first."
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:23
+#, c-format
+msgid "Total Runtime: %.3f s"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:27
+msgid "(no metrics configured)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:37
+msgid "Metric"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:38
+msgid "Mean"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:39
+msgid "Std"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:40
+msgid "Min"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:41
+msgid "Max"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:63
+msgid "Last iteration:"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:66
+#, c-format
+msgid "  Peak %zu: %.3f Hz  (amp = %.4e)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\results_panel.cpp:71
+msgid "  (no peaks detected)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:12
+msgid "Single Simulation"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:29
+msgid "Waveform"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:30
+msgid "Sample"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:32
+msgid "Input"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:44
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:48
+msgid "Spectrum"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:46
+msgid "Magnitude (dB)"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:54
+msgid "True Freq"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:73
+msgid "Peaks"
+msgstr ""
