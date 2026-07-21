@@ -442,7 +442,7 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 > 单频是 `frequencyCount == 1` 的特例。
 > 推荐流水线：`computeDft(input)` → `findPeaksFromDft(...)` →（可选）插值/子空间精修。
 
-### 6.4 Metrics（接口 + 骨架）
+### 6.4 Metrics（**完整实现**）
 
 `include/ispp/metrics/metric.h`
 
@@ -451,26 +451,29 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 
 #include "ispp/core/types.h"
 
+#include <string_view>
+
 namespace ispp {
 
 class IMetric {
 public:
     virtual ~IMetric() = default;
 
-    /// @todo 单次评估：与真实频率比较
-    ///   double evaluate(double trueFrequencyHz,
-    ///                   const EstimationResult& result) = 0;
+    /// 单次评估：与真实频率比较，返回指标值
+    /// 多峰时选取误差最小的峰（决策记录 OQ-6）
+    virtual double evaluate(double trueFrequencyHz,
+                            const EstimationResult& result) = 0;
     virtual std::string_view name() const = 0;
 };
 
 } // namespace ispp
 ```
 
-| 实现 | 行为 |
-|---|---|
-| `PercentageErrorMetric` | 与 `result.peaks` 中**误差最小的峰**比较（决策记录 OQ-6），返回 `%` |
-| `RmseMetric` | 均方根误差 |
-| `ComputeTimeMetric` | 直接返回 `result.computeTimeSec` |
+| 实现 | 行为 | 返回值（单次） |
+|---|---|---|
+| `PercentageErrorMetric` | 与 `result.peaks` 中**误差最小的峰**比较（OQ-6），返回百分比 | `\|Δf\| / f_true × 100%` |
+| `RmseMetric` | 均方根误差（单次返回误差平方，MC 均值 MSE） | `(Δf)²` |
+| `ComputeTimeMetric` | 直接返回 `result.computeTimeSec` | `computeTimeSec` |
 
 ---
 
@@ -779,9 +782,9 @@ endif()
 | # | 里程碑 | 实现程度 |
 |---|---|---|
 | M1 | Core 类型 + Signal/Window 骨架 + 蒙特卡洛完整 | 骨架 + MonteCarlo 实现 |
-| M2 | FFT 估计器 + core/fft 公共工具 + WindowKind 参数 | 工具完整；fft_peak 完整；fft_interpolate 骨架 |
+| M2 | FFT 估计器 + core/fft + rng + signal + window + metrics | 全部完整 |
 | M3 | MUSIC/ESPRIT 骨架 | 骨架 |
-| M4 | Metrics 骨架 + Statistics 完整 | 骨架 + Stats 实现 |
+| M4 | （已合并至 M2） | — |
 | M5 | UI 完整 + main.cpp | **完整实现** |
 | M6 | 端到端冒烟（用户实现任一算法后即可跑） | 验证 |
 
@@ -809,6 +812,8 @@ endif()
 | `core/fft.{h,cpp}` | 全部（公共 FFT 工具：computeDft / findPeaksFromDft） |
 | `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
 | `signal/signal_generator.{h,cpp}` | 全部（正弦生成 + 干扰叠加 + 噪声注入） |
+| `window/window.{h,cpp}` | 全部（四种窗函数系数） |
+| `metrics/*.{h,cpp}` | 全部（PercentageError / MSE / ComputeTime） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
 | `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
@@ -819,11 +824,9 @@ endif()
 
 | 部分 | 责任方 |
 |---|---|
-| `window/window.cpp` 各窗函数系数 | 用户 |
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
 | `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户（已完成） |
 | `estimator/music.cpp` / `esprit.cpp` | 用户 |
-| `metrics/*.cpp` 各 evaluate 逻辑 | 用户 |
 
 > **算法实现完毕后无需修改蒙特卡洛或 UI**：因 `ExperimentRunner` 仅依赖 `IEstimator` / `IMetric` 抽象接口。
 > **推荐**：estimator 内部优先调用 `computeDft` / `findPeaksFromDft`，避免重复实现 PocketFFT 封装。

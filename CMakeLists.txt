@@ -111,10 +111,10 @@ set(ISPP_SOURCES
     src/estimator/fft_interpolate.cpp
     # src/estimator/music.cpp
     # src/estimator/esprit.cpp
-    # Metrics (M4+)
-    # src/metrics/percentage_error.cpp
-    # src/metrics/rmse.cpp
-    # src/metrics/compute_time.cpp
+    # Metrics
+    src/metrics/percentage_error.cpp
+    src/metrics/rmse.cpp
+    src/metrics/compute_time.cpp
     # Experiment (M1)
     src/experiment/statistics.cpp
     src/experiment/experiment_runner.cpp
