@@ -244,8 +244,6 @@ void UiManager::run() {
             Log.log("ERROR in main loop: unknown exception.");
         }
     }
-
-    shutdown();
 }
 
 } // namespace ispp::ui
