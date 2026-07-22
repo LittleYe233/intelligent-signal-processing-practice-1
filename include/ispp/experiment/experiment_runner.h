@@ -34,6 +34,7 @@ struct RunResult {
     RealArray LastSpectrumMag;    // 频谱纵轴
     std::vector<FrequencyPeak> LastPeaks;
     double LastTrueFrequencyHz;
+    double LastInterferenceDeltaHz; // 干扰频偏
 
     // 整体运行耗时（含蒙特卡洛全程；用于显示，非评价指标）
     double TotalRuntimeSec;

@@ -28,7 +28,7 @@ std::string_view PercentageErrorMetric::name() const {
 }
 
 std::string PercentageErrorMetric::format(double value) const {
-    return std::format("{:.3f}%", value);
+    return std::format("{:.4f}%", value);
 }
 
 } // namespace ispp

@@ -1,13 +1,10 @@
 #include "ispp/experiment/experiment_runner.h"
-
 #include "ispp/core/fft.h"
 #include "ispp/core/rng.h"
 #include "ispp/signal/signal_generator.h"
 #include "ispp/window/window.h"
-
 #include <chrono>
 #include <cmath>
-#include <string>
 #include <utility>
 
 namespace ispp {
@@ -28,6 +25,9 @@ bool ExperimentRunner::isCancelled() const { return Cancelled.load(); }
 RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
     RunResult result;
     result.LastTrueFrequencyHz = Config.Signal.FrequencyHz;
+    result.LastInterferenceDeltaHz =
+        Config.Env.Interference.DeltaBins * Config.Signal.SampleRateHz /
+        static_cast<double>(Config.Signal.SampleCount);
 
     const double SAMPLE_RATE = Config.Signal.SampleRateHz;
     const std::size_t N = Config.Signal.SampleCount;

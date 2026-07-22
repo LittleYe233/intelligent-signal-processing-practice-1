@@ -73,9 +73,14 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID("Interference");
         static constexpr double DELTA_MIN = -4.0, DELTA_MAX = 4.0;
-        ImGui::SliderScalar(_UI("Delta (bins)"), ImGuiDataType_Double,
-                            &config.Env.Interference.DeltaBins, &DELTA_MIN,
-                            &DELTA_MAX, "%.2f");
+        if (ImGui::SliderScalar(_UI("Delta (bins)"), ImGuiDataType_Double,
+                                &config.Env.Interference.DeltaBins, &DELTA_MIN,
+                                &DELTA_MAX, "%.1f")) {
+            // If uses "%.2f", uncomment below to set fixed step
+            // config.Env.Interference.DeltaBins =
+            //     std::round(config.Env.Interference.DeltaBins / 0.05f) *
+            //     0.05f;
+        }
         ImGui::InputDouble(_UI("Amplitude"), &config.Env.Interference.Amplitude,
                            0.1, 1.0, "%.2f");
         ImGui::PopID();

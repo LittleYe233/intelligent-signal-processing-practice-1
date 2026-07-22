@@ -11,6 +11,9 @@ namespace ispp::ui {
 class SpectrumPanel {
 public:
     void render(const std::optional<RunResult> &result);
+
+private:
+    const double *LastInputSignalData = nullptr;
 };
 
 } // namespace ispp::ui
