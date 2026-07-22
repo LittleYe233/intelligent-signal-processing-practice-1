@@ -3,7 +3,6 @@
 
 #include "ispp/experiment/experiment_config.h"
 
-#include <array>
 #include <memory>
 #include <vector>
 
@@ -30,7 +29,6 @@ public:
 
 private:
     int SelectedAlgorithm = 0;
-    std::array<bool, 3> MetricsMask = {true, true, true};
 };
 
 } // namespace ui

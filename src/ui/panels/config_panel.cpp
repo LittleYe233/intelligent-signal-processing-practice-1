@@ -10,7 +10,6 @@
 #include "ispp/metrics/rmse.h"
 #include "ispp/ui/widgets/enum_combo.h"
 #include <array>
-#include <cstddef>
 #include <imgui.h>
 
 namespace ispp::ui {
@@ -25,8 +24,6 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
                                      _UI("Laplacian"), _UI("Impulse")};
     static std::array algo_names = {_UI("FFT Peak"), _UI("FFT Interpolate"),
                                     _UI("MUSIC"), _UI("ESPRIT")};
-    static std::array metric_names = {_UI("Percentage Error"), _UI("MSE"),
-                                      _UI("Compute Time")};
 
     if (!ImGui::Begin(_UI("Configuration"))) {
         ImGui::End();
@@ -75,7 +72,7 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
     if (ImGui::CollapsingHeader(_UI("Interference"),
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID("Interference");
-        static constexpr double DELTA_MIN = -2.0, DELTA_MAX = 2.0;
+        static constexpr double DELTA_MIN = -4.0, DELTA_MAX = 4.0;
         ImGui::SliderScalar(_UI("Delta (bins)"), ImGuiDataType_Double,
                             &config.Env.Interference.DeltaBins, &DELTA_MIN,
                             &DELTA_MAX, "%.2f");
@@ -96,10 +93,6 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
                        &config.MonteCarlo.IterationCount);
     ImGui::InputScalar(_UI("Base Seed"), ImGuiDataType_U64,
                        &config.MonteCarlo.BaseSeed);
-
-    ImGui::SeparatorText(_UI("Metrics"));
-    for (size_t i = 0; i < metric_names.size(); ++i)
-        ImGui::Checkbox(metric_names[i], &MetricsMask[i]);
 
     // ---- Run button ----
     ImGui::Separator();
@@ -124,12 +117,9 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
             break;
         }
         metrics.clear();
-        if (MetricsMask[0])
-            metrics.push_back(std::make_shared<PercentageErrorMetric>());
-        if (MetricsMask[1])
-            metrics.push_back(std::make_shared<RmseMetric>());
-        if (MetricsMask[2])
-            metrics.push_back(std::make_shared<ComputeTimeMetric>());
+        metrics.push_back(std::make_shared<PercentageErrorMetric>());
+        metrics.push_back(std::make_shared<RmseMetric>());
+        metrics.push_back(std::make_shared<ComputeTimeMetric>());
         state.Pending = true;
     }
 

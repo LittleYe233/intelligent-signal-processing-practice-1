@@ -1,7 +1,8 @@
 #include "ispp/metrics/rmse.h"
-
+#include "ispp/i18n.h"
 #include <algorithm>
 #include <cmath>
+#include <format>
 
 namespace ispp {
 
@@ -22,6 +23,10 @@ double RmseMetric::evaluate(double true_frequency_hz,
     return ERROR * ERROR;
 }
 
-std::string_view RmseMetric::name() const { return "MSE"; }
+std::string_view RmseMetric::name() const { return _UI("RMSE"); }
+
+std::string RmseMetric::format(double value) const {
+    return std::format("{:.6e}", std::sqrt(value));
+}
 
 } // namespace ispp

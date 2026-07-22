@@ -5,22 +5,28 @@
 #include "ispp/experiment/experiment_config.h"
 #include "ispp/experiment/statistics.h"
 #include "ispp/metrics/metric.h"
-
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace ispp {
 
 // ---------------------------------------------------------------------------
+// 单指标运行结果
+// ---------------------------------------------------------------------------
+struct MetricResult {
+    std::shared_ptr<IMetric> MetricObj;
+    MetricStats Stats;
+};
+
+// ---------------------------------------------------------------------------
 // 单次实验完整运行结果
 // ---------------------------------------------------------------------------
 struct RunResult {
-    // 每个指标名 → 统计聚合（次数 == 1 时 Mean/Std/Min/Max 相同）
-    std::unordered_map<std::string, MetricStats> PerMetricStats;
+    // 每个指标的结果（按注册顺序；MetricObj 提供 format() 与
+    // showDistribution()）
+    std::vector<MetricResult> Metrics;
 
     // 末次迭代的可视化数据（供 UI 频谱面板使用）
     RealArray LastInputSignal;

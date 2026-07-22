@@ -3,6 +3,7 @@
 
 #include "ispp/core/types.h"
 
+#include <string>
 #include <string_view>
 
 namespace ispp {
@@ -24,6 +25,13 @@ public:
 
     /// 返回指标名称（用于结果显示）。
     virtual std::string_view name() const = 0;
+
+    /// 将统计值格式化为人类可读字符串（决策记录 OQ-13）。
+    virtual std::string format(double value) const = 0;
+
+    /// 是否在结果面板展示完整的统计分布（mean/std/min/max）。
+    /// RMSE 返回 false（仅显示单一 RMSE 值），其余返回 true。
+    virtual bool showDistribution() const { return true; }
 };
 
 } // namespace ispp

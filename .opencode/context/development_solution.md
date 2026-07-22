@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.1 |
+| 文档版本 | v1.2 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-21（新增 `core/peak_finder` 公共工具，见 §5.5） |
+| 最近修订 | 2026-07-22（指标修订：移除指标多选；修正 RMSE；新增每指标格式化，见 §6.4 / §8.3 / §8.5 / §14 OQ-11~13） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -599,6 +599,7 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 
 #include "ispp/core/types.h"
 
+#include <string>
 #include <string_view>
 
 namespace ispp {
@@ -612,16 +613,25 @@ public:
     virtual double evaluate(double trueFrequencyHz,
                             const EstimationResult& result) = 0;
     virtual std::string_view name() const = 0;
+
+    /// 将统计值格式化为人类可读字符串（决策记录 OQ-13）。
+    /// 各指标格式不同：百分比误差保留三位小数并加 `%` 后缀；
+    /// RMSE 对 MSE 开根号后以 `%.6e` 显示；计算时间用 SI 单位 + 3 位有效数字。
+    virtual std::string format(double value) const = 0;
+
+    /// 是否在结果面板展示完整的统计分布（mean/std/min/max）。
+    /// RMSE 返回 false（仅显示单一 RMSE 值），其余返回 true。
+    virtual bool showDistribution() const { return true; }
 };
 
 } // namespace ispp
 ```
 
-| 实现 | 行为 | 返回值（单次） |
-|---|---|---|
-| `PercentageErrorMetric` | 与 `result.peaks` 中**误差最小的峰**比较（OQ-6），返回百分比 | `\|Δf\| / f_true × 100%` |
-| `RmseMetric` | 均方根误差（单次返回误差平方，MC 均值 MSE） | `(Δf)²` |
-| `ComputeTimeMetric` | 直接返回 `result.computeTimeSec` | `computeTimeSec` |
+| 实现 | 行为 | 返回值（单次） | 结果面板展示 | `format()` 规则 |
+|---|---|---|---|---|
+| `PercentageErrorMetric` | 与 `result.peaks` 中**误差最小的峰**比较（OQ-6），返回百分比 | `\|Δf\| / f_true × 100%` | `showDistribution() = true`：完整统计列 | 保留三位小数 + `%` 后缀，如 `0.150%` / `12.345%` |
+| `RmseMetric` | 均方根误差：单次返回 `(Δf)²`；MC 聚合后 `mean = MSE`，`sqrt(mean)` = RMSE；`name()` 返回 `"RMSE"`（原 `"MSE"`） | `(Δf)²` | `showDistribution() = false`：**仅显示单一 RMSE 值**；不展示 mean/std/min/max（对这些值求均值和标准差不具有数学意义） | 对 MSE 开根号后以 `%.6e` 显示（如 `1.234e-06`） |
+| `ComputeTimeMetric` | 直接返回 `result.computeTimeSec` | `computeTimeSec` | `showDistribution() = true`：完整统计列 | SI 单位 + 3 位有效数字，如 `375ns` / `5.52us` / `10.5ms` / `1.23s` |
 
 ---
 
@@ -833,7 +843,7 @@ src/ui/
 - 蒙特卡洛次数（默认 100）
 - 基准种子（可编辑）
 - 算法选择（4 选 1，单选）
-- 评价指标多选（勾选要启用的指标）
+- 评价指标：**全部始终启用**（不再提供勾选；移除 MetricsMask / Metrics 多选区域；`ExperimentRunner` 始终注册三个指标：PercentageError、RMSE、ComputeTime）
 - **"运行" 按钮**：触发后台 `ExperimentRunner::run()`
 
 ### 8.4 频谱面板（ImPlot）
@@ -845,7 +855,13 @@ src/ui/
 
 ### 8.5 结果面板
 
-- 表格：每行一个 metric，列为 `mean / std / min / max`
+- 遍历 `PerMetricStats`，按各 metric 的 `showDistribution()` 分两种展示：
+
+  | `showDistribution()` | 展示方式 |
+  |---|---|
+  | `true`（PercentageError、ComputeTime） | 表格行：`Metric \| Mean \| Std \| Min \| Max`；每个统计值经 `metric.format()` 格式化后显示 |
+  | `false`（RMSE） | 单行：`"RMSE: <formatted_value>"`；`formatted_value = metric.format(mean)`（对 MSE 开根号 → RMSE） |
+
 - `iterationCount == 1` 时仅显示单值列（其他列隐藏或显示同值）
 - 末次 `computeTimeSec` 单独标注
 
@@ -967,7 +983,7 @@ endif()
 | `core/peak_finder.{h,tpp}` | 全部（通用一维寻峰模板：findPeaks + 中值滤波 / prominence / FWHM） |
 | `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
 | `signal/signal_generator.{h,cpp}` | 全部（正弦生成 + 干扰叠加 + 噪声注入） |
-| `metrics/*.{h,cpp}` | 全部（PercentageError / MSE / ComputeTime） |
+| `metrics/*.{h,cpp}` | 全部（PercentageError / RMSE / ComputeTime，含各自 `format()` / `showDistribution()` 实现） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
 | `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
@@ -1014,6 +1030,9 @@ endif()
 | OQ-8 | `PeakFinder` 位置与 API 形态 | 放置于 `include/ispp/core/peak_finder.h`（Core 层"工具"职责）；类模板 `template <std::floating_point T>`；**所有方法均为 `static`**（修正参考签名中 `static ... const` 的 C++ 合规问题）；无实例状态，通过 `PeakFinder<double>::findPeaks(...)` 调用 |
 | OQ-9 | `findPeaksFromDft` 签名稳定性 | **公开签名保持不变**（`threshold_factor` + `max_peak_count`）；实现内部委托 `PeakFinder<double>::findPeaks`，旧参数映射为 (margin, min_prominence) 与后置截断；调用方零改动 |
 | OQ-10 | `PeakFinder` 模板文件组织 | 实现 `.tpp` 由 `.h` 末尾 `#include` 引入（header-only 模板）；`.tpp` 不参与 `target_sources`；CMake 无需改动（`include/` 已在 include path） |
+| OQ-11 | 评价指标启用方式 | **全部启用**（移除配置面板的多选勾选 `MetricsMask` 与 Metrics 区域；`ExperimentRunner` 始终注册全部三个指标） |
+| OQ-12 | RMSE 正确性与面板展示 | `RmseMetric::evaluate()` 单次返回 `(Δf)²`（保持不变）；MC 聚合后 `mean = MSE`，`sqrt(mean)` = RMSE；`name()` 改为 `"RMSE"`（原 `"MSE"`）；结果面板中 `showDistribution() = false`，仅显示单一 RMSE 值，不展示统计分布 |
+| OQ-13 | 指标显示格式 | `IMetric` 新增 `format(double)`；各指标按自身规则格式化：百分比误差保留三位小数 + `%`；RMSE 对 MSE 开根号后 `%.6e`；计算时间 SI 单位 + 3 位有效数字 |
 
 ---
 

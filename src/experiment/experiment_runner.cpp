@@ -113,8 +113,10 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
 
     // --- 聚合每指标统计 ---
     for (std::size_t m = 0; m < Metrics.size(); ++m) {
-        const std::string NAME(Metrics[m]->name());
-        result.PerMetricStats[NAME] = computeStats(metric_samples[m]);
+        result.Metrics.push_back({
+            .MetricObj = Metrics[m],
+            .Stats = computeStats(metric_samples[m]),
+        });
     }
 
     return result;

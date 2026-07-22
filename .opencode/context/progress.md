@@ -13,6 +13,9 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 
 | Hash | Message |
 |---|---|
+| `f422992` | ✨ feat(i18n): wrap UI strings in _UI() and add zh_CN translation |
+| `de01c29` | feat(i18n): add GNU gettext dep and i18n support |
+| `3622839` | build(cmake): link all deps statically |
 | `05d18bb` | build(cmake): refine build options |
 | `388e990` | ♻️ refactor(core): extract peak-finding into reusable PeakFinder utility |
 | `4d7fa6a` | fix(fft_interpolate): fix formula error |
@@ -47,11 +50,30 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 
 **Refactor work outside milestones**:
 - PeakFinder utility extracted from `findPeaksFromDft` (`388e990`). Doc tracked as v1.1 in `development_solution.md` (§5.5, OQ-8/9/10) but **not** as a formal milestone per user instruction.
+- **i18n layer** (`de01c29` + `f422992`) — GNU gettext integration with two text domains (`ui`/`con`), Win32 locale auto-detection, zh_CN translation. Outside M1–M6 scope; user-initiated enhancement.
+- **Metrics revision** (uncommitted, this session) — removed metric enable/disable checkbox; corrected RMSE (was computing MSE, name was `"MSE"`); added per-metric `format()` + `showDistribution()` to `IMetric`; `RunResult` changed from `unordered_map<string, MetricStats>` to `vector<MetricResult>`. Doc tracked as v1.2 in `development_solution.md` (§6.4, §8.3, §8.5, OQ-11/12/13). Outside M1–M6 scope; user-initiated revision.
 
 ### Pending (uncommitted, this session)
 
-- **`CMakeLists.txt`** — added "Static Linking" section (`if(MINGW) add_link_options(-static -static-libgcc -static-libstdc++) endif()`). Forces linker to prefer `.a` over `.dll.a` for GCC runtime, stdlib, winpthread, and GLFW. Resulting `build/ISPPracticeOne.exe` is self-contained, runs on any Windows 10+ machine without MSYS2. **User verified via `ldd`** — no MSYS2 DLLs in dependency list. Suggested commit message: `build(cmake): static-link runtime + GLFW for redistributable exe`.
-- **`AGENTS.md`** — added "Static linking (default on MinGW)" subsection under "Dependency wiring".
+14 files modified, **build verified** (`cmake --build build` → clean compile + link → 38 MB exe):
+
+**Doc** (1 file):
+- `.opencode/context/development_solution.md` — v1.1 → v1.2; 7 edits across §6.4 / §8.3 / §8.5 / §12.2 / §14 (OQ-11~13)
+
+**Codebase** (12 files):
+- `include/ispp/metrics/metric.h` — added `format()`, `showDistribution()` to `IMetric`; added `#include <string>`
+- `include/ispp/metrics/rmse.h` + `src/metrics/rmse.cpp` — `name()` → `"RMSE"`; `format()` = `sqrt(value)` → `{:.6e}`; `showDistribution()` = `false`
+- `include/ispp/metrics/percentage_error.h` + `src/metrics/percentage_error.cpp` — `format()` = `{:.3f}%`
+- `include/ispp/metrics/compute_time.h` + `src/metrics/compute_time.cpp` — `format()` = SI unit (`ns`/`us`/`ms`/`s`) + 3 sig digits
+- `include/ispp/experiment/experiment_runner.h` — `RunResult::PerMetricStats` (`unordered_map<string, MetricStats>`) → `RunResult::Metrics` (`vector<MetricResult>`); added `MetricResult` struct; removed `<unordered_map>` include
+- `src/experiment/experiment_runner.cpp` — populates `result.Metrics` via designated initializers
+- `include/ispp/ui/panels/config_panel.h` — removed `MetricsMask` member + `<array>` include
+- `src/ui/panels/config_panel.cpp` — removed Metrics checkbox section + `metric_names` array; always pushes all 3 metrics
+- `src/ui/panels/results_panel.cpp` — branches on `showDistribution()`: table row (PercentageError, ComputeTime) vs. single-line RMSE; uses `metric->format()` for all cells
+
+**Previously listed as pending, now committed**:
+- Static linking section in `CMakeLists.txt` + `AGENTS.md` "Static linking (default on MinGW)" subsection — committed in `3622839`.
+- i18n wiring (all UI panels wrapped with `_UI()`) + `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — committed in `f422992`.
 
 ### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
 
@@ -74,10 +96,10 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `src/estimator/music.cpp` — ⏳ skeleton stub (user must implement with Eigen; can use `PeakFinder` on pseudospectrum directly per §6.3)
 - `src/estimator/esprit.cpp` — ⏳ skeleton stub (user must implement with Eigen)
 
-**Metrics layer**:
-- `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6)
-- `src/metrics/rmse.cpp` — ✅ returns `(Δf)²` (MC mean = MSE)
-- `src/metrics/compute_time.cpp` — ✅ returns `result.ComputeTimeSec`
+**Metrics layer** (revised this session — `format()` + `showDistribution()` added to `IMetric`):
+- `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 3 decimal places + `%` suffix
+- `src/metrics/rmse.cpp` — ✅ returns `(Δf)²` per iteration (MC mean = MSE); `name()` = `"RMSE"` (was `"MSE"`); `format(value)` = `sqrt(value)` → `{:.6e}`; `showDistribution()` = `false` (single-value display, no mean/std/min/max row)
+- `src/metrics/compute_time.cpp` — ✅ returns `result.ComputeTimeSec`; `format()` = SI units (`ns`/`us`/`ms`/`s`) + 3 significant digits
 
 **Experiment layer**:
 - `src/experiment/statistics.cpp` — ✅ mean/std/min/max
@@ -90,7 +112,16 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `src/ui/panels/results_panel.cpp` — ✅ metrics table + peak info
 - `src/ui/panels/log_panel.cpp` — ✅ thread-safe ring buffer (200 messages)
 - `src/ui/widgets/enum_combo.h` — ✅ template enum ↔ ImGui::Combo bridge
-- `src/main.cpp` — ✅ calls `UiManager::run()`
+- `src/main.cpp` — ✅ i18n bootstrap (Win32 locale detection, `setlocale`, `bindtextdomain` for `ui`/`con`) THEN `UiManager::run()`
+
+**i18n layer (NEW, `de01c29` + `f422992`)**:
+- `include/ispp/i18n.h` — ✅ `_UI(S)` / `_CON(S)` macros → `dgettext("ui", S)` / `dgettext("con", S)` (dual text-domain design, not the default-domain `gettext`)
+- `cmake/msgfmt.cmake` — ✅ `find_package(Gettext)`; compiles each `locales/<lang>/<dom>.po` → `${BUILD_DIR}/locales/<lang>/LC_MESSAGES/<dom>.mo` via `${GETTEXT_MSGFMT_EXECUTABLE}`; declares `translations` custom target and wires it as a dependency of `${PROJECT_NAME}`
+- `locales/pot/ui.pot` — ✅ xgettext-extracted POT template covering every UI msgid (auto-generated, regenerates via `xgettext -o locales/pot/ui.pot ...`)
+- `locales/zh_CN/ui.po` — ✅ Simplified Chinese translations, full coverage of all `ui`-domain msgids
+- `CMakeLists.txt` — ✅ `find_package(Intl REQUIRED)` + `find_package(Iconv REQUIRED)`; links `Intl::Intl` + `Iconv::Iconv` to main exe; `include(cmake/msgfmt.cmake)`; flipped `ISPP_WIN32_GUI` default **OFF** (was ON); added `set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")` + `BUILD_SHARED_LIBS OFF` in MINGW block (belt-and-suspenders for static linking — extends Lesson 15)
+- All UI panel `.cpp` files — ✅ user-facing literals wrapped with `_UI()` (config / log / results / spectrum panels)
+- `src/ui/ui_manager.cpp` — ✅ font bumped `14.0f * xscale` → fixed `16.0f`; added `ImGui::GetStyle().FontScaleMain = 1.5`; added window/scale debug `std::cout << std::format(...)` logging
 
 ### User Responsibilities (REMAINING)
 
@@ -193,6 +224,45 @@ OpenGL (`opengl32.dll`) and Windows system DLLs remain dynamic (they ship with t
 **Why not always `-static`?** Potential ABI conflicts when mixing with other DLLs that themselves use libstdc++ — but for a self-contained GUI exe that links nothing else, this is the right tradeoff.
 
 **Caveat**: link-option changes need `Remove-Item -Recurse -Force build`; incremental rebuilds do not re-evaluate them.
+
+### i18n Architecture (NEW, `de01c29` + `f422992`)
+
+**Two text domains** — `ui` for ImGui panels, `con` for console output. Macros use `dgettext("ui"/"con", S)` (domain-specific), **not** `gettext(S)` (default domain), so each call site picks the correct catalog.
+
+**Bootstrap** (`src/main.cpp`, Win32-specific paths gated by `#ifdef _WIN32`):
+1. `initWindowsLocale()` — `SetConsoleCP/SetConsoleOutputCP(CP_UTF8)`; if neither `LANG` nor `LC_ALL` is set in env (pwsh often leaves them unset), read `GetUserDefaultLocaleName` (returns e.g. `zh-CN`), convert dash → underscore, append `.UTF-8` → `zh_CN.UTF-8`, set via `_putenv_s("LANG", ...)`.
+2. `getExecutableDir()` via `GetModuleFileNameW(nullptr, ...)` — resolves `locales/` relative to the **exe location**, not the CWD. Critical when the app is launched from a different working directory.
+3. `setlocale(LC_ALL, "")` → `bindtextdomain("ui", locales_dir)` + `bind_textdomain_codeset("ui", "UTF-8")` → same for `"con"` → `UiManager::run()`.
+
+**Build wiring** (`cmake/msgfmt.cmake`): `find_package(Gettext REQUIRED)`; for each `LANG ∈ {zh_CN}` × `DOM ∈ {ui}`, compile `locales/<lang>/<dom>.po` → `${CMAKE_BINARY_DIR}/locales/<lang>/LC_MESSAGES/<dom>.mo` via `${GETTEXT_MSGFMT_EXECUTABLE}`; `add_custom_target(translations ALL DEPENDS ${MO_FILES})`; `add_dependencies(${PROJECT_NAME} translations)` ensures `.mo` files are built before the exe.
+
+**`locales_dir` at runtime**: `${CMAKE_BINARY_DIR}/locales` is where the `.mo` files land, but `main.cpp` looks up `<exe_dir>/locales`. The build must copy/install the `locales/` tree next to the exe for translations to actually load. (Currently no `install()` rule wires this — user runs from `build/` so the mismatch may be latent. Worth verifying in M6 smoke test.)
+
+**Build option flip**: `ISPP_WIN32_GUI` default is now **OFF** (was ON). The console window stays open so gettext warnings and the `std::cout << std::format(...)` debug output in `ui_manager.cpp` are actually visible. ⚠️ This contradicts the AGENTS.md note about "no console window"; **AGENTS.md has NOT been updated for this flip** — flag for correction.
+
+**Label renames bundled with i18n wiring** (in `f422992`):
+- Outer `"Spectrum"` window → `"Single Simulation"`
+- `"Time Domain"` plot → `"Waveform"`
+- `"Spectrum (dB)"` plot → `"Spectrum"`
+- `"Results"` window → `"Results & Metrics"`
+- `"No results — run an experiment first."` → `"No data — run an experiment first."`
+
+### Metrics Formatting & Distribution (NEW, uncommitted this session, doc v1.2 OQ-11/12/13)
+
+**Three changes to the metrics subsystem**:
+
+1. **Always-on metrics** (OQ-11): Removed the `MetricsMask` checkbox section from `ConfigPanel`. All three metrics (PercentageError, RMSE, ComputeTime) are always registered. The `metric_names` local array and the `ImGui::SeparatorText("Metrics")` + checkbox loop were deleted.
+
+2. **RMSE correctness** (OQ-12): `RmseMetric::evaluate()` still returns `(Δf)²` per iteration (mathematically correct — RMSE requires squared errors as input). The Runner computes `mean = MSE` over MC iterations. `RmseMetric::format(value)` applies `std::sqrt(value)` → displays the actual RMSE. `name()` changed from `"MSE"` to `"RMSE"`. `showDistribution() = false` — the results panel renders RMSE as a single-line value (`"RMSE: 1.234e-06"`), NOT a table row, because showing mean/std/min/max of squared errors is mathematically meaningless.
+
+3. **Per-metric formatting** (OQ-13): `IMetric` gained `virtual std::string format(double value) const = 0`. Each metric formats its own values:
+   - **PercentageError**: `std::format("{:.3f}%", value)` — three decimal places + `%` suffix (e.g., `0.150%`, `12.345%`)
+   - **RMSE**: `std::format("{:.6e}", std::sqrt(value))` — sqrt of MSE, then scientific notation
+   - **ComputeTime**: SI unit selection by magnitude (`ns`/`us`/`ms`/`s`) + 3 significant digits (e.g., `375ns`, `5.52us`, `10.5ms`, `1.23s`). Decimal places depend on scaled magnitude: `≥100` → 0 decimals, `≥10` → 1 decimal, `<10` → 2 decimals.
+
+**RunResult data structure change**: `PerMetricStats` (`unordered_map<string, MetricStats>`) was replaced by `Metrics` (`vector<MetricResult>`), where `MetricResult = { shared_ptr<IMetric> MetricObj, MetricStats Stats }`. This threads the metric objects through to the results panel so it can call `format()` and `showDistribution()`. Side benefit: insertion order is now preserved (unordered_map had undefined iteration order).
+
+**ResultsPanel rendering**: two-pass — first renders a `BeginTable` for all `showDistribution() == true` metrics (table row per metric, each cell via `metric->format()`), then renders single-line values for `showDistribution() == false` metrics (currently just RMSE).
 
 ## Mistakes & Lessons (NEVER REPEAT)
 
@@ -338,6 +408,22 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 
 **Validation**: DO NOT validate this point.
 
+### 16. `progress.md` "Pending" section must be cleared when its items are committed (NEW this session)
+
+**Mistake**: The previous session listed the CMake static-linking work and the AGENTS.md subsection under "Pending (uncommitted, this session)". That work was then committed in `3622839`, which updated `progress.md` (+50 lines, adding the Static Linking architecture note + Lesson 15) — but the commit **did not remove or mark the "Pending" section as resolved**. The section stayed stale for ~1 day, causing `/resume-progress` to initially report pending work that was already in HEAD.
+
+**Resolution**: When committing an item that `progress.md` lists as pending, either (a) update `progress.md` in the same commit to clear/move the item, or (b) explicitly note in the section that the items are now committed (with the commit hash). Do not leave the section describing a state that no longer matches the working tree.
+
+**Lesson**: `progress.md` is the source of truth that future sessions read first. Any section that contradicts `git status` / `git log` is worse than no section at all. Treat "Pending (uncommitted)" as a queue: items come out when they land in a commit. Re-verify the section against `git log --oneline` before saving.
+
+### 17. Windows exe-lock blocks the linker (NEW this session)
+
+**Mistake**: Ran `cmake --build build` while `ISPPracticeOne.exe` was still running (PID from a previous manual launch). All 10 object files compiled successfully, but the final link step failed with `ld.exe: cannot open output file ISPPracticeOne.exe: Permission denied`. The build reported `FAILED: [code=1]` even though no code was wrong.
+
+**Resolution**: Kill the running process first (`Stop-Process -Name ISPPracticeOne -Force`), then re-run `cmake --build build`. Only the link step re-executes (objects are cached by Ninja).
+
+**Lesson**: On Windows, the linker cannot overwrite a `.exe` that is currently executing. Before invoking a build, check `Get-Process -Name ISPPracticeOne -ErrorAction SilentlyContinue`. If a stale `FAILED: Permission denied` appears at the link step with all objects compiled clean, the code is fine — just kill the process and rebuild. Do NOT waste time hunting for code bugs when the error message specifically says `Permission denied` on the output file.
+
 ## Build & Validation Commands
 
 ```powershell
@@ -364,6 +450,6 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (v1.1, ~1025 lines, updated through PeakFinder refactor §5.5)
+- `.opencode/context/development_solution.md` — authoritative plan (**v1.2**, ~1044 lines). Updated through: PeakFinder §5.5 (v1.1); metrics revision §6.4/§8.3/§8.5/OQ-11~13 (v1.2, this session). **i18n layer NOT documented here** — it is user-initiated scope outside M1–M6.
 - `.opencode/context/progress.md` — this file
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)

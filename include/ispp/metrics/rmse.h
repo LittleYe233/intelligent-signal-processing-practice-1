@@ -15,6 +15,10 @@ public:
                     const EstimationResult &result) override;
 
     std::string_view name() const override;
+
+    std::string format(double value) const override;
+
+    bool showDistribution() const override { return false; }
 };
 
 } // namespace ispp
