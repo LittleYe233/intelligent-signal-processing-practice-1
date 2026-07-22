@@ -1,5 +1,4 @@
 #include "ispp/core/rng.h"
-
 #include <random>
 
 namespace ispp {

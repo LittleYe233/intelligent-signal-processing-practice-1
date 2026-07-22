@@ -40,8 +40,6 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
                            &config.Signal.SampleCount);
         ImGui::InputDouble(_UI("Frequency (Hz)"), &config.Signal.FrequencyHz,
                            1.0, 10.0, "%.1f");
-        ImGui::InputDouble(_UI("Amplitude"), &config.Signal.Amplitude, 0.1, 1.0,
-                           "%.2f");
         ImGui::InputDouble(_UI("Phase (rad)"), &config.Signal.PhaseRad, 0.1,
                            1.0, "%.3f");
         ImGui::PopID();

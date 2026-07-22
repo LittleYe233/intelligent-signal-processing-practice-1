@@ -10,18 +10,17 @@ RealArray SignalGenerator::generate(const SignalSpec &signal,
                                     const EnvSpec &env, Rng &rng) const {
     const std::size_t N = signal.SampleCount;
     const double FS = signal.SampleRateHz;
-    const double AMP = signal.Amplitude;
     const double FREQ = signal.FrequencyHz;
     const double PHASE = signal.PhaseRad;
 
     std::vector<double> buf(N);
 
     // -----------------------------------------------------------------------
-    // 1. 原始正弦：A * sin(2π * f/fs * n + φ)
+    // 1. 原始正弦：sin(2π * f/fs * n + φ) — 幅度固定为 1.0
     // -----------------------------------------------------------------------
     for (std::size_t n = 0; n < N; ++n) {
         const double T = static_cast<double>(n) / FS;
-        buf[n] = AMP * std::sin(2.0 * std::numbers::pi * FREQ * T + PHASE);
+        buf[n] = std::sin(2.0 * std::numbers::pi * FREQ * T + PHASE);
     }
 
     // -----------------------------------------------------------------------
@@ -41,11 +40,11 @@ RealArray SignalGenerator::generate(const SignalSpec &signal,
     // -----------------------------------------------------------------------
     // 3. 噪声：按分布与 SNR 叠加
     // -----------------------------------------------------------------------
-    // 信号 RMS = A / √2，信号功率 = A² / 2
+    // 信号幅度固定为 1.0 → 信号 RMS = 1/√2，信号功率 = 1/2
     // 噪声功率 = 信号功率 / 10^(SNR/10)
     // 噪声标准差 = √(噪声功率)
     const double SNR_DB = env.Noise.SnrDb;
-    const double SIG_RMS = AMP / std::numbers::sqrt2;
+    const double SIG_RMS = 1.0 / std::numbers::sqrt2;
     const double NOISE_POWER =
         (SIG_RMS * SIG_RMS) / std::pow(10.0, SNR_DB / 10.0);
     const double NOISE_STD = std::sqrt(NOISE_POWER);

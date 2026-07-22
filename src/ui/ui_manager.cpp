@@ -29,7 +29,6 @@ UiManager::UiManager() {
     Config.Signal.SampleRateHz = 1000.0;
     Config.Signal.SampleCount = 256;
     Config.Signal.FrequencyHz = 100.0;
-    Config.Signal.Amplitude = 1.0;
     Config.Signal.PhaseRad = 0.0;
     Config.Env.Window.Kind = WindowKind::RECTANGULAR;
     Config.Env.Noise.Distribution = NoiseDistribution::GAUSSIAN;

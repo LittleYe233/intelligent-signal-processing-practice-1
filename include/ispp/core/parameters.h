@@ -14,8 +14,7 @@ struct SignalSpec {
     double SampleRateHz;
     std::size_t SampleCount;
     double FrequencyHz;
-    double Amplitude;
-    double PhaseRad;
+    double PhaseRad; // Amplitude is implicitly 1.0; other sources (interference) are relative to it
 };
 
 // ---------------------------------------------------------------------------

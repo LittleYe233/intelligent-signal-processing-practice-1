@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.2 |
+| 文档版本 | v1.4 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-22（指标修订：移除指标多选；修正 RMSE；新增每指标格式化，见 §6.4 / §8.3 / §8.5 / §14 OQ-11~13） |
+| 最近修订 | 2026-07-22（移除信号幅度参数，固定为 1.0；干扰幅度改为隐式相对值。见 §5.2 / §6.2 / §8.3 / OQ-17） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -191,8 +191,8 @@ struct SignalSpec {
     double sampleRateHz;     // 采样率
     std::size_t sampleCount; // 采样点数
     double frequencyHz;      // 原始信号频率
-    double amplitude;        // 原始信号幅度（线性）
     double phaseRad;         // 原始信号初相位
+    // 幅度固定为 1.0（OQ-17）；干扰等其余源的幅度隐式相对此基准
 };
 
 enum class WindowKind {
@@ -229,7 +229,7 @@ struct NoiseInfo {
 
 struct InterferenceSpec {
     double deltaBins;       // 与原始信号频率的差，单位为 bin；== 0 表示无干扰
-    double amplitude;       // 干扰幅度（线性）
+    double amplitude;       // 干扰幅度（相对于信号幅度 1.0 的线性比值）
 };
 
 // 聚合 5 个正交维度
@@ -490,7 +490,7 @@ public:
 } // namespace ispp
 ```
 
-**流水线**：纯正弦 → (+干扰，若 `deltaBins != 0`) → (+噪声，按分布与 SNR) → 输出实数信号。
+**流水线**：纯正弦（幅度 1.0）→ (+干扰，若 `deltaBins != 0`) → (+噪声，按分布与 SNR) → 输出实数信号。
 
 ### 6.3 Estimator（接口 + 4 个骨架；实现由用户完成）
 
@@ -702,26 +702,31 @@ struct ExperimentConfig {
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace ispp {
 
+// 单指标运行结果
+struct MetricResult {
+    std::shared_ptr<IMetric> MetricObj;
+    MetricStats Stats;
+};
+
 // 单次实验完整运行结果
 struct RunResult {
-    // 每个 metric 名 → 统计聚合（次数 == 1 时 std/min/max 与 mean 相同）
-    std::unordered_map<std::string, MetricStats> perMetricStats;
+    // 每个指标的结果（按注册顺序；MetricObj 提供 format() 与 showDistribution()）
+    std::vector<MetricResult> Metrics;
 
     // 末次迭代的可视化数据（供 UI 频谱面板使用）
-    RealArray lastInputSignal;
-    RealArray lastSpectrumFreqHz;     // 频谱横轴
-    RealArray lastSpectrumMag;        // 频谱纵轴
-    std::vector<FrequencyPeak> lastPeaks;
-    double lastTrueFrequencyHz;
+    RealArray LastInputSignal;
+    RealArray LastSpectrumFreqHz;     // 频谱横轴
+    RealArray LastSpectrumMag;        // 频谱纵轴
+    std::vector<FrequencyPeak> LastPeaks;
+    double LastTrueFrequencyHz;
+    double LastInterferenceDeltaHz;   // 干扰频偏（OQ-16）
 
     // 整体运行耗时（含蒙特卡洛全程；用于显示，非评价指标）
-    double totalRuntimeSec;
+    double TotalRuntimeSec;
 };
 
 class ExperimentRunner {
@@ -733,18 +738,17 @@ public:
                      std::vector<std::shared_ptr<IMetric>> metrics);
 
     // 同步运行；后台线程由 UI 调用方包装
-    // onProgress 在每次蒙特卡洛迭代结束时回调（线程安全：仅 UI 端读取）
-    RunResult run(ProgressCallback onProgress = nullptr);
+    RunResult run(const ProgressCallback &onProgress = nullptr);
 
     // 取消标志（UI 可在另一线程设置）
     void cancel();
     bool isCancelled() const;
 
 private:
-    ExperimentConfig config_;
-    std::shared_ptr<IEstimator> estimator_;
-    std::vector<std::shared_ptr<IMetric>> metrics_;
-    std::atomic<bool> cancelled_{false};
+    ExperimentConfig Config;
+    std::shared_ptr<IEstimator> Estimator;
+    std::vector<std::shared_ptr<IMetric>> Metrics;
+    std::atomic<bool> Cancelled{false};
 };
 
 } // namespace ispp
@@ -755,7 +759,8 @@ private:
 ```text
 1. 预解析：binHz = sampleRate / sampleCount
 2. 为每个 metric 准备 samples: vector<vector<double>>
-3. RunResult result; result.lastTrueFrequencyHz = config.signal.frequencyHz;
+3. RunResult result; result.LastTrueFrequencyHz = config.signal.frequencyHz;
+   result.LastInterferenceDeltaHz = config.env.interference.deltaBins * binHz;
 4. for i in [0, iterationCount):
    a. 若 isCancelled() → break
    b. Rng rng(config.monteCarlo.baseSeed + i);
@@ -779,7 +784,7 @@ private:
     i. 若 i == iterationCount - 1：缓存 lastInputSignal / lastSpectrum* / lastPeaks
        （频谱通过 computeDft(input) 计算，复用 core/fft）
     j. onProgress((i + 1) / iterationCount)
-5. for each metric m: result.perMetricStats[m->name()] = computeStats(samples[m])
+5. for each metric m: result.Metrics.push_back({m, computeStats(samples[m])})
 6. result.totalRuntimeSec = 全程计时
 7. return result;
 ```
@@ -838,7 +843,7 @@ src/ui/
 | 干扰 Δfreq | `ImGui::SliderFloat` | -2 ~ 2 bin（两端包含；== 0 自动判定无干扰） |
 
 **附加控件**：
-- 信号基础参数（采样率、采样点数、原始频率、幅度、相位）
+- 信号基础参数（采样率、采样点数、原始频率、相位；幅度固定为 1.0 不暴露）
 - `maxFreqCount`（用于 MUSIC/ESPRIT）
 - 蒙特卡洛次数（默认 100）
 - 基准种子（可编辑）
@@ -848,10 +853,21 @@ src/ui/
 
 ### 8.4 频谱面板（ImPlot）
 
-- 时域输入信号折线图（末次迭代 `lastInputSignal`）
-- 加窗后单边幅度谱（横轴 `lastSpectrumFreqHz`，纵轴 `lastSpectrumMag`，提供 dB/线性切换）
+**布局**：波形与频谱各自包裹在 `ImGui::BeginChild(..., ImGuiChildFlags_ResizeY)` 容器中，用户可拖拽调整两个图的高度。容器宽度填满可用区域。
+
+**轴范围自动重拟合**（OQ-15）：`SetupAxisLimits` 默认使用 `ImPlotCond_Once`（仅首帧生效），导致首次实验后轴范围冻结。修复策略：`SpectrumPanel` 记录 `LastInputSignalData` 指针，当 `UiManager` 移动赋值新 `RunResult` 时指针变化 → 该帧使用 `ImPlotCond_Always` 强制重设轴范围 → 后续帧恢复 `ImPlotCond_Once`（no-op），保留用户手动缩放。
+
+| 图 | X 轴范围 | Y 轴范围 |
+|---|---|---|
+| 波形 | `[0, N-1]`（紧凑，无留白） | `[min, max] ± 8%` 数据范围 |
+| 频谱 | `[freq.front(), freq.back()]`（紧凑，无留白） | `[min, max] ± 8%` 数据范围（dB） |
+
+**绘制内容**：
+- 时域输入信号折线图（末次迭代 `LastInputSignal`）
+- 单边幅度谱 dB（`20*log10(mag)`，地板 -300 dB）
 - 估计峰值叠加散点（`ImPlot::PlotScatter`）
 - 真实频率参考竖线（`ImPlot::PlotInfLines`）
+- 干扰频率参考竖线（当 `LastInterferenceDeltaHz ≠ 0` 时绘制，OQ-16）
 
 ### 8.5 结果面板
 
@@ -901,7 +917,7 @@ while (!glfwWindowShouldClose(window)):
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData())
     glfwSwapBuffers(window)
 
-清理 ImGui/ImPlot/GLFW
+清理 ImGui/ImPlot/GLFW（仅在 `~UiManager()` 析构中调用 `shutdown()`，不在 `run()` 末尾调用——避免双重 shutdown 崩溃，OQ-14）
 ```
 
 > **线程约定**：`ExperimentRunner::run()` 在独立 `std::thread` 中执行；UI 端仅在主线程读写 `RunResult`。`ProgressCallback` 通过原子或主循环 polling 传递进度。
@@ -1033,6 +1049,10 @@ endif()
 | OQ-11 | 评价指标启用方式 | **全部启用**（移除配置面板的多选勾选 `MetricsMask` 与 Metrics 区域；`ExperimentRunner` 始终注册全部三个指标） |
 | OQ-12 | RMSE 正确性与面板展示 | `RmseMetric::evaluate()` 单次返回 `(Δf)²`（保持不变）；MC 聚合后 `mean = MSE`，`sqrt(mean)` = RMSE；`name()` 改为 `"RMSE"`（原 `"MSE"`）；结果面板中 `showDistribution() = false`，仅显示单一 RMSE 值，不展示统计分布 |
 | OQ-13 | 指标显示格式 | `IMetric` 新增 `format(double)`；各指标按自身规则格式化：百分比误差保留三位小数 + `%`；RMSE 对 MSE 开根号后 `%.6e`；计算时间 SI 单位 + 3 位有效数字 |
+| OQ-14 | 双重 shutdown 崩溃 | `UiManager::run()` 末尾调用 `shutdown()` 后析构函数再次调用 → `ImGui_ImplOpenGL3_Shutdown` 断言失败。修复：仅在析构函数中调用 `shutdown()`（RAII），`run()` 末尾不再调用 |
+| OQ-15 | 频谱轴自动重拟合 | `SetupAxisLimits` 默认 `ImPlotCond_Once` 仅首帧生效。修复：`SpectrumPanel` 跟踪输入信号堆指针检测数据变更，变更帧使用 `ImPlotCond_Always` 强制重设，其余帧 `ImPlotCond_Once` 保留用户缩放 |
+| OQ-16 | 干扰频率参考线 | `RunResult` 新增 `LastInterferenceDeltaHz`（= `deltaBins × binHz`）；频谱面板在非零时绘制 `TRUE_FREQ + deltaHz` 的竖线 |
+| OQ-17 | 信号幅度参数移除 | `SignalSpec` 不再包含 `Amplitude` 字段；信号生成固定幅度 1.0。干扰 `InterferenceSpec::Amplitude` 保留，但其语义为相对于信号基准（1.0）的线性比值。噪声功率计算相应简化（信号 RMS = 1/√2）。UI 配置面板移除信号幅度控件 |
 
 ---
 
@@ -1041,4 +1061,4 @@ endif()
 - **维度扫描**：把 5 个维度任意子集改造为 sweep 列表；`ExperimentRunner` 内层增加 sweep 嵌套循环，外层仍为蒙特卡洛。`ExperimentConfig` 应预留扩展形态。
 - **结果导出**：CSV/JSON。
 - **多算法对比**：同一配置下并列运行多种算法，结果面板表格按算法分行。
-- **国际化（i18n）**：当前 UI 文本硬编码简体中文；如需 i18n，需要先抽出字符串表。
+- **国际化（i18n）**：已通过 GNU gettext 实现（双文本域 `ui`/`con`，Win32 locale 自动检测，zh_CN 翻译）；不在本文档范围内，属于用户自主扩展。

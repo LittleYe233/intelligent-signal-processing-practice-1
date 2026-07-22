@@ -5,7 +5,7 @@
 ## Project
 
 **ISPPracticeOne** — C++20 signal frequency estimation simulation framework (MSYS2 UCRT64).
-Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.1).
+Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.3).
 
 ## Current Status
 
@@ -13,6 +13,9 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 
 | Hash | Message |
 |---|---|
+| `ad94f78` | 🐛 fix(ui): auto-refit spectrum axes on new experiment data |
+| `a73421b` | fix(ui): fix double shutdown() error |
+| `85e330f` | ✨ feat(metrics): revise metric display with per-metric formatting and correct RMSE |
 | `f422992` | ✨ feat(i18n): wrap UI strings in _UI() and add zh_CN translation |
 | `de01c29` | feat(i18n): add GNU gettext dep and i18n support |
 | `3622839` | build(cmake): link all deps statically |
@@ -51,29 +54,12 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 **Refactor work outside milestones**:
 - PeakFinder utility extracted from `findPeaksFromDft` (`388e990`). Doc tracked as v1.1 in `development_solution.md` (§5.5, OQ-8/9/10) but **not** as a formal milestone per user instruction.
 - **i18n layer** (`de01c29` + `f422992`) — GNU gettext integration with two text domains (`ui`/`con`), Win32 locale auto-detection, zh_CN translation. Outside M1–M6 scope; user-initiated enhancement.
-- **Metrics revision** (uncommitted, this session) — removed metric enable/disable checkbox; corrected RMSE (was computing MSE, name was `"MSE"`); added per-metric `format()` + `showDistribution()` to `IMetric`; `RunResult` changed from `unordered_map<string, MetricStats>` to `vector<MetricResult>`. Doc tracked as v1.2 in `development_solution.md` (§6.4, §8.3, §8.5, OQ-11/12/13). Outside M1–M6 scope; user-initiated revision.
+- **Metrics revision** (`85e330f`) — removed metric enable/disable checkbox; corrected RMSE (was computing MSE, name was `"MSE"`); added per-metric `format()` + `showDistribution()` to `IMetric`; `RunResult` changed from `unordered_map<string, MetricStats>` to `vector<MetricResult>`. Doc tracked as v1.2 in `development_solution.md` (§6.4, §8.3, §8.5, OQ-11/12/13). Outside M1–M6 scope; user-initiated revision.
+- **UI bug fixes** (`a73421b` + `ad94f78`) — fixed double-shutdown segfault on window close (OQ-14); fixed ImPlot axis auto-refit on new experiment data via conditional `ImPlotCond` (OQ-15); added interference frequency reference line (OQ-16); spectrum plots wrapped in resizable `BeginChild` containers. Doc tracked as v1.3 in `development_solution.md` (§7.3, §8.4, §8.7, OQ-14~16).
 
-### Pending (uncommitted, this session)
+### Working tree
 
-14 files modified, **build verified** (`cmake --build build` → clean compile + link → 38 MB exe):
-
-**Doc** (1 file):
-- `.opencode/context/development_solution.md` — v1.1 → v1.2; 7 edits across §6.4 / §8.3 / §8.5 / §12.2 / §14 (OQ-11~13)
-
-**Codebase** (12 files):
-- `include/ispp/metrics/metric.h` — added `format()`, `showDistribution()` to `IMetric`; added `#include <string>`
-- `include/ispp/metrics/rmse.h` + `src/metrics/rmse.cpp` — `name()` → `"RMSE"`; `format()` = `sqrt(value)` → `{:.6e}`; `showDistribution()` = `false`
-- `include/ispp/metrics/percentage_error.h` + `src/metrics/percentage_error.cpp` — `format()` = `{:.3f}%`
-- `include/ispp/metrics/compute_time.h` + `src/metrics/compute_time.cpp` — `format()` = SI unit (`ns`/`us`/`ms`/`s`) + 3 sig digits
-- `include/ispp/experiment/experiment_runner.h` — `RunResult::PerMetricStats` (`unordered_map<string, MetricStats>`) → `RunResult::Metrics` (`vector<MetricResult>`); added `MetricResult` struct; removed `<unordered_map>` include
-- `src/experiment/experiment_runner.cpp` — populates `result.Metrics` via designated initializers
-- `include/ispp/ui/panels/config_panel.h` — removed `MetricsMask` member + `<array>` include
-- `src/ui/panels/config_panel.cpp` — removed Metrics checkbox section + `metric_names` array; always pushes all 3 metrics
-- `src/ui/panels/results_panel.cpp` — branches on `showDistribution()`: table row (PercentageError, ComputeTime) vs. single-line RMSE; uses `metric->format()` for all cells
-
-**Previously listed as pending, now committed**:
-- Static linking section in `CMakeLists.txt` + `AGENTS.md` "Static linking (default on MinGW)" subsection — committed in `3622839`.
-- i18n wiring (all UI panels wrapped with `_UI()`) + `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — committed in `f422992`.
+**Clean** — all work committed. No pending files.
 
 ### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
 
@@ -96,8 +82,8 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `src/estimator/music.cpp` — ⏳ skeleton stub (user must implement with Eigen; can use `PeakFinder` on pseudospectrum directly per §6.3)
 - `src/estimator/esprit.cpp` — ⏳ skeleton stub (user must implement with Eigen)
 
-**Metrics layer** (revised this session — `format()` + `showDistribution()` added to `IMetric`):
-- `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 3 decimal places + `%` suffix
+**Metrics layer** (revised in `85e330f` — `format()` + `showDistribution()` added to `IMetric`):
+- `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 4 decimal places + `%` suffix (precision bumped 3→4 in `ad94f78`)
 - `src/metrics/rmse.cpp` — ✅ returns `(Δf)²` per iteration (MC mean = MSE); `name()` = `"RMSE"` (was `"MSE"`); `format(value)` = `sqrt(value)` → `{:.6e}`; `showDistribution()` = `false` (single-value display, no mean/std/min/max row)
 - `src/metrics/compute_time.cpp` — ✅ returns `result.ComputeTimeSec`; `format()` = SI units (`ns`/`us`/`ms`/`s`) + 3 significant digits
 
@@ -108,7 +94,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 **UI layer (M5)**:
 - `src/ui/ui_manager.cpp` — ✅ GLFW/ImGui/ImPlot init, DPI-normalized sizing, main loop, background thread, try-catch
 - `src/ui/panels/config_panel.cpp` — ✅ all config controls with PushID/PopID
-- `src/ui/panels/spectrum_panel.cpp` — ✅ time domain + frequency domain dB + peaks + true freq line
+- `src/ui/panels/spectrum_panel.cpp` — ✅ time domain + frequency domain dB + peaks + true freq line + interference freq line (OQ-16); resizable `BeginChild` layout; conditional axis auto-refit via `ImPlotCond` pointer-change detection (OQ-15); X-axis tight + Y-axis 8% padding
 - `src/ui/panels/results_panel.cpp` — ✅ metrics table + peak info
 - `src/ui/panels/log_panel.cpp` — ✅ thread-safe ring buffer (200 messages)
 - `src/ui/widgets/enum_combo.h` — ✅ template enum ↔ ImGui::Combo bridge
@@ -247,7 +233,7 @@ OpenGL (`opengl32.dll`) and Windows system DLLs remain dynamic (they ship with t
 - `"Results"` window → `"Results & Metrics"`
 - `"No results — run an experiment first."` → `"No data — run an experiment first."`
 
-### Metrics Formatting & Distribution (NEW, uncommitted this session, doc v1.2 OQ-11/12/13)
+### Metrics Formatting & Distribution (`85e330f`, doc v1.2 OQ-11/12/13)
 
 **Three changes to the metrics subsystem**:
 
@@ -424,6 +410,24 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 
 **Lesson**: On Windows, the linker cannot overwrite a `.exe` that is currently executing. Before invoking a build, check `Get-Process -Name ISPPracticeOne -ErrorAction SilentlyContinue`. If a stale `FAILED: Permission denied` appears at the link step with all objects compiled clean, the code is fine — just kill the process and rebuild. Do NOT waste time hunting for code bugs when the error message specifically says `Permission denied` on the output file.
 
+### 18. ImPlot `SetupAxisLimits` defaults to `ImPlotCond_Once` — silently ignores subsequent calls (NEW this session)
+
+**Mistake**: Called `ImPlot::SetupAxisLimits(ImAxis_Y1, newMin, newMax)` every frame with freshly computed min/max from the latest experiment data. Expected the axis to refit on each new experiment. In reality, only the **first frame** applied the limits; all subsequent calls were silently ignored because the default condition is `ImPlotCond_Once`.
+
+**Root cause**: ImPlot's `ApplyNextPlotData` (line 2162) checks `if (!plot.Initialized || npd_rngc == ImPlotCond_Always)`. After the first frame, `Initialized` is true and the condition is `Once`, so `axis.SetRange()` is never called again.
+
+**Resolution**: Track the input signal's heap pointer (`LastInputSignal.data()`) to detect when `UiManager` move-assigns a fresh `RunResult`. On the data-change frame, pass `ImPlotCond_Always`; on all other frames, pass `ImPlotCond_Once` (no-op, preserves user zoom/pan).
+
+**Lesson**: `ImPlotCond_Once` is not "apply once per call" — it is "apply once per plot ID lifetime". Any `SetupAxisLimits` call after the first frame is dead code unless you use `ImPlotCond_Always`. But `Always` locks the axis every frame (breaks manual zoom). The correct pattern for "refit on data change, preserve user zoom otherwise" is a per-frame condition switch based on data-change detection.
+
+### 19. RAII destructor + explicit `shutdown()` in `run()` = double-shutdown crash (NEW this session)
+
+**Mistake**: `UiManager::run()` called `shutdown()` at the end of the main loop, then `~UiManager()` called `shutdown()` again. The second call hit `ImGui_ImplOpenGL3_Shutdown()` whose backend data (`bd`) was already freed by `IM_DELETE(bd)` in the first call → assertion failure: `bd != nullptr && "No renderer backend to shutdown, or already shutdown?"`.
+
+**Resolution**: Remove the `shutdown()` call from `run()`. The destructor is the sole cleanup point (RAII). Since `app` is a stack variable in `main()`, the destructor runs immediately after `run()` returns — no resource leak window.
+
+**Lesson**: When a class has both an explicit lifecycle method (`run()`) and a destructor that calls the same cleanup (`shutdown()`), calling cleanup from both paths causes double-free. Pick one cleanup invocation point — preferably the destructor (RAII) — and make the lifecycle method NOT call cleanup. If idempotent shutdown is needed (e.g., `run()` might be called multiple times), add a guard flag; but the simplest fix is to trust RAII.
+
 ## Build & Validation Commands
 
 ```powershell
@@ -450,6 +454,6 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v1.2**, ~1044 lines). Updated through: PeakFinder §5.5 (v1.1); metrics revision §6.4/§8.3/§8.5/OQ-11~13 (v1.2, this session). **i18n layer NOT documented here** — it is user-initiated scope outside M1–M6.
+- `.opencode/context/development_solution.md` — authoritative plan (**v1.3**, ~1056 lines). Updated through: PeakFinder §5.5 (v1.1); metrics revision §6.4/§8.3/§8.5/OQ-11~13 (v1.2); RunResult struct sync §7.3, spectrum panel §8.4, RAII shutdown §8.7, OQ-14~16 (v1.3). **i18n layer NOT documented here** — it is user-initiated scope outside M1–M6.
 - `.opencode/context/progress.md` — this file
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)
