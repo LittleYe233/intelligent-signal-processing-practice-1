@@ -47,10 +47,10 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 |---|---|---|
 | M1 | Core types + Signal/Window skeleton + MonteCarlo complete | ✅ Done (`7875d71`) |
 | M2 | FFT estimators + core/fft + rng + signal + window + metrics | ✅ Done (multiple commits) |
-| M3 | MUSIC/ESPRIT | ✅ MUSIC implemented (user, beam-space via Eigen SVD); ESPRIT still skeleton |
+| M3 | MUSIC/ESPRIT | ✅ Done — both implemented by user (beam-space MUSIC + Hankel ESPRIT via Eigen) |
 | M4 | (merged into M2) Metrics + Statistics | ✅ Done (`0b3184c`) |
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
-| M6 | End-to-end smoke test | ⏳ Pending (user runs the app) |
+| M6 | End-to-end smoke test | ✅ Done — user verified all 4 algorithms |
 
 **Refactor work outside milestones**:
 - PeakFinder utility extracted from `findPeaksFromDft` (`388e990`). Doc tracked as v1.1 in `development_solution.md` (§5.5, OQ-8/9/10) but **not** as a formal milestone per user instruction.
@@ -96,7 +96,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `src/estimator/fft_peak.cpp` — ✅ PocketFFT + threshold peak search (user implemented)
 - `src/estimator/fft_interpolate.cpp` — ✅ Quinn init + binary search refinement (user implemented; two formula/index bugfixes in `c8afafb` + `4d7fa6a`)
 - `src/estimator/music.cpp` — ✅ **Implemented** (user). Beam-space MUSIC via Eigen SVD: snapshot matrix → DFT beam-forming → covariance → eigendecomposition → noise subspace projection → pseudospectrum peak search. Uses `findPeaksFromDft` for initial frequency range, then refines. Returns `AMP_UNKNOWN` + `PROMINENCE_UNKNOWN`.
-- `src/estimator/esprit.cpp` — ⏳ skeleton stub (user must implement with Eigen)
+- `src/estimator/esprit.cpp` — ✅ **Implemented** (user). ESPRIT via Hankel data matrix + sliding window + Hermitian eigensolver + subspace rotation. Uses `SelfAdjointEigenSolver` for covariance decomposition (faster than full SVD). References paper 10.1109/FOCS61266.2024.00137. Returns `AMP_UNKNOWN` + `PROMINENCE_UNKNOWN`. Needs `-O3` for reasonable speed.
 
 **Metrics layer** (revised in `85e330f` + v1.5 architecture implemented this session):
 - `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 4 decimal places + `%` suffix
@@ -126,13 +126,14 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - All UI panel `.cpp` files — ✅ user-facing literals wrapped with `_UI()` (config / log / results / spectrum panels)
 - `src/ui/ui_manager.cpp` — ✅ font bumped `14.0f * xscale` → fixed `16.0f`; added `ImGui::GetStyle().FontScaleMain = 1.5`; added window/scale debug `std::cout << std::format(...)` logging
 
-### User Responsibilities (REMAINING)
+### User Responsibilities
 
-Only two items left:
-1. **`src/estimator/music.cpp`** — ✅ DONE (user implemented beam-space MUSIC with Eigen SVD).
-2. **`src/estimator/esprit.cpp`** — implement ESPRIT algorithm (needs Eigen SVD + subspace rotation)
+All complete:
 
-Everything else is complete and operational.
+1. **`src/estimator/music.cpp`** — ✅ DONE (beam-space MUSIC via Eigen SVD).
+2. **`src/estimator/esprit.cpp`** — ✅ DONE (Hankel matrix + subspace rotation via Eigen).
+
+**All milestones M1–M6 are complete.** The framework is fully operational with all 4 frequency estimation algorithms implemented.
 
 ## Key Architecture Decisions
 

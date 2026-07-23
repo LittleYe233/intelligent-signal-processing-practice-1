@@ -585,7 +585,16 @@ private:
 };
 
 // esprit.h
-class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
+/// ESPRIT 频率估计算法（用户已实现 — Hankel 矩阵 + 子空间旋转）。
+/// @see Paper 10.1109/FOCS61266.2024.00137
+/// @note 需要较高优化级别（如 -O3）才能在合理时间内完成计算
+class EspritEstimator final : public IEstimator {
+public:
+    EspritEstimator() = default;
+    std::vector<FrequencyPeak>
+    estimate(const RealArray& input, const EstimationContext& context) override;
+    std::string_view name() const override;
+};
 ```
 
 | 算法 | 关键依赖 | 多频策略 | 上下文使用 |
@@ -611,6 +620,17 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 > `|dft[i]|` 复数取模，对已经是线性实数的伪谱是错误的额外步骤。
 > 直接使用 `PeakFinder` 可获得完整的 (kernel_size / margin /
 > min_prominence / min_width) 调参能力。
+>
+> **MUSIC / ESPRIT 性能优化注意事项**（用户实现总结）：
+> 1. **大 N 优化（N > 256）**：MUSIC 与 ESPRIT 均使用滑动窗口 + Hankel
+>    数据矩阵来降低计算复杂度。协方差矩阵通过 `SelfAdjointEigenSolver`
+>    （Hermitian 特征值求解器）分解，而非通用 SVD——前者利用 Hermite 矩阵
+>    结构，复杂度约为后者的一半。
+> 2. **生产环境编译**：ESPRIT 的伪逆与特征值分解计算量大，建议启用
+>    `-O3` 和 `-march=native`（或 `-march=x86-64-v3/v4`）以充分利用 SIMD
+>    向量化。开发期 Debug 模式下执行时间可能慢 10× 以上。
+>    参见 CMake 选项 `ISPP_ENABLE_NATIVE` / `ISPP_ENABLE_X86_64_V4` /
+>    `ISPP_ENABLE_X86_64_V3`（§10.1）。
 
 ### 6.4 Metrics（**完整实现**）
 
@@ -1093,10 +1113,10 @@ endif()
 |---|---|---|
 | M1 | Core 类型 + Signal/Window 骨架 + 蒙特卡洛完整 | 骨架 + MonteCarlo 实现 |
 | M2 | FFT 估计器 + core/fft + rng + signal + window + metrics | 全部完整 |
-| M3 | MUSIC/ESPRIT 骨架 | MUSIC 已由用户实现（beam-space MUSIC via Eigen SVD）；ESPRIT 仍为骨架 |
+| M3 | MUSIC/ESPRIT | MUSIC + ESPRIT 均由用户实现（beam-space MUSIC + Hankel ESPRIT，via Eigen） |
 | M4 | （已合并至 M2） | — |
 | M5 | UI 完整 + main.cpp | **完整实现** |
-| M6 | 端到端冒烟（用户实现任一算法后即可跑） | 验证 |
+| M6 | 端到端冒烟（用户实现任一算法后即可跑） | ✅ **已完成** — 用户已验证全部 4 个算法可运行 |
 
 **每个里程碑完成后的强制步骤**（遵循 `AGENTS.md`）：
 1. 对所有改动文件运行 `clang-format`
@@ -1138,7 +1158,7 @@ endif()
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
 | `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户（已完成） |
 | `estimator/music.cpp` | 用户（**已完成** — beam-space MUSIC via Eigen SVD + pseudospectrum peak search） |
-| `estimator/esprit.cpp` | 用户（未完成） |
+| `estimator/esprit.cpp` | 用户（**已完成** — Hankel 矩阵 + 子空间旋转 via Eigen；@see 10.1109/FOCS61266.2024.00137） |
 
 > **算法实现完毕后无需修改蒙特卡洛或 UI**：因 `ExperimentRunner` 仅依赖 `IEstimator` / `IMetric` 抽象接口。
 > **推荐**：estimator 内部优先调用 `computeDft` / `findPeaksFromDft`，避免重复实现 PocketFFT 封装。

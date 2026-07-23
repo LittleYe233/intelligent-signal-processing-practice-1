@@ -12,6 +12,8 @@ class EspritEstimator final : public IEstimator {
 public:
     EspritEstimator() = default;
 
+    /// @see Paper 10.1109/FOCS61266.2024.00137
+    /// @note Should optimize enough (like -O3), or it calculates very slow
     std::vector<FrequencyPeak>
     estimate(const RealArray &input, const EstimationContext &context) override;
 
