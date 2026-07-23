@@ -2,7 +2,6 @@
 #define ISPP_ESTIMATOR_FFT_INTERPOLATE_H
 
 #include "ispp/estimator/estimator.h"
-
 #include <string_view>
 #include <vector>
 

@@ -3,7 +3,6 @@
 
 #include "ispp/core/parameters.h"
 #include "ispp/core/types.h"
-
 #include <cstddef>
 #include <string_view>
 #include <vector>

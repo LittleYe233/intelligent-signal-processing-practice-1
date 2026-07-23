@@ -47,7 +47,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 |---|---|---|
 | M1 | Core types + Signal/Window skeleton + MonteCarlo complete | ✅ Done (`7875d71`) |
 | M2 | FFT estimators + core/fft + rng + signal + window + metrics | ✅ Done (multiple commits) |
-| M3 | MUSIC/ESPRIT skeletons | ✅ Skeletons created (`bf920b2`) — algorithm logic is user responsibility |
+| M3 | MUSIC/ESPRIT | ✅ MUSIC implemented (user, beam-space via Eigen SVD); ESPRIT still skeleton |
 | M4 | (merged into M2) Metrics + Statistics | ✅ Done (`0b3184c`) |
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
 | M6 | End-to-end smoke test | ⏳ Pending (user runs the app) |
@@ -95,7 +95,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 **Estimator layer**:
 - `src/estimator/fft_peak.cpp` — ✅ PocketFFT + threshold peak search (user implemented)
 - `src/estimator/fft_interpolate.cpp` — ✅ Quinn init + binary search refinement (user implemented; two formula/index bugfixes in `c8afafb` + `4d7fa6a`)
-- `src/estimator/music.cpp` — ⏳ skeleton stub (user must implement with Eigen; can use `PeakFinder` on pseudospectrum directly per §6.3)
+- `src/estimator/music.cpp` — ✅ **Implemented** (user). Beam-space MUSIC via Eigen SVD: snapshot matrix → DFT beam-forming → covariance → eigendecomposition → noise subspace projection → pseudospectrum peak search. Uses `findPeaksFromDft` for initial frequency range, then refines. Returns `AMP_UNKNOWN` + `PROMINENCE_UNKNOWN`.
 - `src/estimator/esprit.cpp` — ⏳ skeleton stub (user must implement with Eigen)
 
 **Metrics layer** (revised in `85e330f` + v1.5 architecture implemented this session):
@@ -129,7 +129,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 ### User Responsibilities (REMAINING)
 
 Only two items left:
-1. **`src/estimator/music.cpp`** — implement MUSIC algorithm (needs Eigen SVD). Use `PeakFinder<double>::findPeaks` directly on pseudospectrum (NOT `findPeaksFromDft`).
+1. **`src/estimator/music.cpp`** — ✅ DONE (user implemented beam-space MUSIC with Eigen SVD).
 2. **`src/estimator/esprit.cpp`** — implement ESPRIT algorithm (needs Eigen SVD + subspace rotation)
 
 Everything else is complete and operational.

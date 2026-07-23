@@ -2,7 +2,6 @@
 #define ISPP_ESTIMATOR_ESPRIT_H
 
 #include "ispp/estimator/estimator.h"
-
 #include <string_view>
 #include <vector>
 

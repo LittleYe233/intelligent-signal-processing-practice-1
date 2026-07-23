@@ -573,13 +573,15 @@ public:
 };
 
 // music.h
-class MusicEstimator : public IEstimator {
+/// MUSIC 频率估计算法（用户已实现 — beam-space MUSIC via Eigen SVD）。
+class MusicEstimator final : public IEstimator {
 public:
-    /// @todo 依赖 Eigen（用户接入后实现）；频率数由 context.frequencyCount 决定
-    MusicEstimator() = default;
+    explicit MusicEstimator(double threshold = 0.0);
     std::vector<FrequencyPeak>
     estimate(const RealArray& input, const EstimationContext& context) override;
     std::string_view name() const override;
+private:
+    double Threshold;
 };
 
 // esprit.h
@@ -1091,7 +1093,7 @@ endif()
 |---|---|---|
 | M1 | Core 类型 + Signal/Window 骨架 + 蒙特卡洛完整 | 骨架 + MonteCarlo 实现 |
 | M2 | FFT 估计器 + core/fft + rng + signal + window + metrics | 全部完整 |
-| M3 | MUSIC/ESPRIT 骨架 | 骨架 |
+| M3 | MUSIC/ESPRIT 骨架 | MUSIC 已由用户实现（beam-space MUSIC via Eigen SVD）；ESPRIT 仍为骨架 |
 | M4 | （已合并至 M2） | — |
 | M5 | UI 完整 + main.cpp | **完整实现** |
 | M6 | 端到端冒烟（用户实现任一算法后即可跑） | 验证 |
@@ -1135,7 +1137,8 @@ endif()
 | `window/window.{h,cpp}` | 用户（已完成） |
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
 | `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户（已完成） |
-| `estimator/music.cpp` / `esprit.cpp` | 用户 |
+| `estimator/music.cpp` | 用户（**已完成** — beam-space MUSIC via Eigen SVD + pseudospectrum peak search） |
+| `estimator/esprit.cpp` | 用户（未完成） |
 
 > **算法实现完毕后无需修改蒙特卡洛或 UI**：因 `ExperimentRunner` 仅依赖 `IEstimator` / `IMetric` 抽象接口。
 > **推荐**：estimator 内部优先调用 `computeDft` / `findPeaksFromDft`，避免重复实现 PocketFFT 封装。
