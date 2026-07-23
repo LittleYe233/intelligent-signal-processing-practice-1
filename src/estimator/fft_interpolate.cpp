@@ -111,7 +111,9 @@ FftInterpolateEstimator::estimate(const RealArray &input,
     const double FREQ = BIN_HZ * delta;
 
     return std::vector<FrequencyPeak>{
-        FrequencyPeak{.FrequencyHz = FREQ, .Amplitude = AMP_UNKNOWN}};
+        FrequencyPeak{.FrequencyHz = FREQ,
+                      .Amplitude = AMP_UNKNOWN,
+                      .Prominence = PROMINENCE_UNKNOWN}};
 }
 
 std::string_view FftInterpolateEstimator::name() const {

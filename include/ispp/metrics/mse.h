@@ -1,5 +1,5 @@
-#ifndef ISPP_METRICS_RMSE_H
-#define ISPP_METRICS_RMSE_H
+#ifndef ISPP_METRICS_MSE_H
+#define ISPP_METRICS_MSE_H
 
 #include "ispp/metrics/metric.h"
 
@@ -7,9 +7,9 @@
 
 namespace ispp {
 
-/// 均方误差指标：单次返回 (Δf)²，蒙特卡洛均值即为 MSE。
-/// 多峰时选取与真实频率误差最小的峰（OQ-6）。
-class RmseMetric final : public IMetric {
+/// 均方误差指标：单次返回 (Δf)²，蒙特卡洛均值即为 MSE = 1/M·Σ(Δf)²。
+/// 选峰策略 = max-Prominence（OQ-21），而非 min-error。
+class MseMetric final : public IMetric {
 public:
     double evaluate(double true_frequency_hz,
                     const EstimationResult &result) override;
@@ -23,4 +23,4 @@ public:
 
 } // namespace ispp
 
-#endif // ISPP_METRICS_RMSE_H
+#endif // ISPP_METRICS_MSE_H

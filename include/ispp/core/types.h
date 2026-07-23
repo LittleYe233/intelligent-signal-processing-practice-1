@@ -13,9 +13,16 @@ using ComplexArray = std::vector<std::complex<double>>;
 /// value and should be handled properly in other procedures.
 const double AMP_UNKNOWN = -1;
 
+/// Denotes that prominence of such frequency is unknown / meaningless.
+/// Used by estimators that do not obtain peaks via PeakFinder (e.g. FFT
+/// Interpolate produces a single interpolated frequency with no associated
+/// prominence). See OQ-18.
+const double PROMINENCE_UNKNOWN = -1;
+
 struct FrequencyPeak {
     double FrequencyHz;
     double Amplitude;
+    double Prominence;
 };
 
 struct EstimationResult {

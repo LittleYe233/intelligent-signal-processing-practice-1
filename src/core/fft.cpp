@@ -82,7 +82,8 @@ std::vector<FrequencyPeak> findPeaksFromDft(const ComplexArray &dft,
     for (const auto &p : pf_peaks) {
         result.push_back(
             FrequencyPeak{.FrequencyHz = static_cast<double>(p.Index) * bin_hz,
-                          .Amplitude = mags[p.Index]});
+                          .Amplitude = mags[p.Index],
+                          .Prominence = p.Prominence});
     }
 
     return result;

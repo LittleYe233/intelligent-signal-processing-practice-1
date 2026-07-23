@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.4 |
+| 文档版本 | v1.5 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-22（移除信号幅度参数，固定为 1.0；干扰幅度改为隐式相对值。见 §5.2 / §6.2 / §8.3 / OQ-17） |
+| 最近修订 | 2026-07-23（FrequencyPeak 新增 Prominence 字段；RMSE 改回 MSE；新增 RelativeEfficiency 聚合指标 + IMetric 扩展；MSE/RelativeEfficiency 改用 max-Prominence 选峰。见 §5.1 / §5.4 / §6.4 / §7.4 / §8.3 / §8.5 / OQ-18~21） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -92,10 +92,11 @@ intelligent-signal-processing-practice-1/
 │       │   ├── music.h
 │       │   └── esprit.h
 │       ├── metrics/
-│       │   ├── metric.h            ← IMetric 接口
+│       │   ├── metric.h            ← IMetric 接口（含聚合指标扩展：isAggregate / finalize）
 │       │   ├── percentage_error.h
-│       │   ├── rmse.h
-│       │   └── compute_time.h
+│       │   ├── mse.h               ← 原 rmse.h；MSE = 1/M·Σ(Δf)²（不再开根号）
+│       │   ├── compute_time.h
+│       │   └── relative_efficiency.h  ← 新增：η = CRB / SampleVariance（聚合指标）
 │       └── experiment/
 │           ├── experiment_config.h ← 单一配置 + MonteCarloConfig
 │           ├── experiment_runner.h ← 蒙特卡洛循环（完整实现）
@@ -117,8 +118,9 @@ intelligent-signal-processing-practice-1/
 │   │   └── esprit.cpp              ← 用户实现
 │   ├── metrics/
 │   │   ├── percentage_error.cpp
-│   │   ├── rmse.cpp
-│   │   └── compute_time.cpp
+│   │   ├── mse.cpp                 ← 原 rmse.cpp
+│   │   ├── compute_time.cpp
+│   │   └── relative_efficiency.cpp  ← 新增
 │   ├── experiment/
 │   │   ├── experiment_runner.cpp   ← 完整实现
 │   │   └── statistics.cpp          ← 完整实现
@@ -150,26 +152,36 @@ intelligent-signal-processing-practice-1/
 ```cpp
 #pragma once
 
-#include <string>
-#include <string_view>
+#include <complex>
 #include <vector>
 
 namespace ispp {
 
-// 实数信号采样序列；不持有采样率（采样率由上下文传入）
 using RealArray = std::vector<double>;
+using ComplexArray = std::vector<std::complex<double>>;
+
+/// Denotes that amplitude of such frequency is unknown.
+/// Never assume a specific value and should be handled properly.
+const double AMP_UNKNOWN = -1;
+
+/// Denotes that prominence of such frequency is unknown / meaningless.
+/// Used by estimators that do not obtain peaks via PeakFinder (e.g. FFT
+/// Interpolate produces a single interpolated frequency with no associated
+/// prominence). See OQ-18.
+const double PROMINENCE_UNKNOWN = -1;
 
 // 单个估计出的频率点
 struct FrequencyPeak {
-    double frequencyHz;
-    double amplitude;
+    double FrequencyHz;
+    double Amplitude;
+    double Prominence; // 来自 PeakFinder 的拓扑突出度（OQ-18）
 };
 
-// 估计算法完整输出（含频率-幅度对 + 计时）。
+// 估计算法完整输出（含频率-幅度-突出度三元组列表 + 计时）。
 // Peaks 由 IEstimator 填充，ComputeTimeSec 由 ExperimentRunner 外部注入。
 struct EstimationResult {
-    std::vector<FrequencyPeak> peaks;
-    double computeTimeSec;   // 由 Runner 填充：含窗函数施加 + 估计的完整耗时
+    std::vector<FrequencyPeak> Peaks;
+    double ComputeTimeSec;
 };
 
 } // namespace ispp
@@ -303,7 +315,8 @@ ComplexArray computeDft(const RealArray& input);
 ///      min_prominence, min_width)`；
 ///   3. 将返回的 `Peak::Index` 映射为
 ///      `FrequencyPeak{ .FrequencyHz = idx * bin_hz,
-///                      .Amplitude   = mags[idx] }`；
+///                      .Amplitude   = mags[idx],
+///                      .Prominence  = p.Prominence }`；
 ///   4. 若返回峰数 > `max_peak_count`，按 `Prominence` 降序截取前 N 个。
 ///
 /// **旧参数 → 新参数映射**（仅供实现参考，签名保持稳定）：
@@ -583,6 +596,13 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 > 单频是 `frequencyCount == 1` 的特例。
 > 推荐流水线：`computeDft(input)` → `findPeaksFromDft(...)` →（可选）插值/子空间精修。
 >
+> **Prominence 语义**（OQ-18）：`FrequencyPeak::Prominence` 仅在经由
+> `findPeaksFromDft`（内部委托 `PeakFinder`）产出时有物理意义——FFT Peak
+> 直接获得拓扑突出度。FFT Interpolate 的最终频率来自二分搜索精修，无对应
+> 峰值 → `Prominence = PROMINENCE_UNKNOWN`。MUSIC / ESPRIT 若对伪谱调用
+> `PeakFinder<double>::findPeaks` 则获得伪谱域 Prominence（物理含义不同
+> 于 DFT 域，但数值有效）；当前骨架阶段设为 `PROMINENCE_UNKNOWN`。
+>
 > **MUSIC / ESPRIT 的伪谱寻峰**：在伪谱（pseudospectrum）数组生成后，
 > 应直接调用 `PeakFinder<double>::findPeaks(pseudospectrum, ...)`（§5.5），
 > 而非把伪谱塞进 `findPeaksFromDft` —— `findPeaksFromDft` 内部会做
@@ -597,41 +617,127 @@ class EspritEstimator : public IEstimator { /* 同 MUSIC */ };
 ```cpp
 #pragma once
 
+#include "ispp/core/parameters.h" // NoiseInfo
 #include "ispp/core/types.h"
 
+#include <cstddef>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace ispp {
 
 class IMetric {
 public:
+    IMetric() = default;
+    IMetric(const IMetric &) = delete;
+    IMetric &operator=(const IMetric &) = delete;
+    IMetric(IMetric &&) = delete;
+    IMetric &operator=(IMetric &&) = delete;
     virtual ~IMetric() = default;
 
-    /// 单次评估：与真实频率比较，返回指标值
-    /// 多峰时选取误差最小的峰（决策记录 OQ-6）
+    /// 单次评估：与真实频率比较，返回指标值。
+    /// 多峰时选取误差最小的峰（OQ-6）。
+    /// 聚合指标（isAggregate() == true）不需实现有效逻辑——
+    /// Runner 不会调用此方法。
     virtual double evaluate(double trueFrequencyHz,
                             const EstimationResult& result) = 0;
+
     virtual std::string_view name() const = 0;
 
     /// 将统计值格式化为人类可读字符串（决策记录 OQ-13）。
-    /// 各指标格式不同：百分比误差保留三位小数并加 `%` 后缀；
-    /// RMSE 对 MSE 开根号后以 `%.6e` 显示；计算时间用 SI 单位 + 3 位有效数字。
+    /// 各指标格式不同：百分比误差保留四位小数并加 `%` 后缀；
+    /// MSE 直接以 `%.6e` 显示；计算时间用 SI 单位 + 3 位有效数字；
+    /// 相对效率保留六位小数（NaN → "N/A"）。
     virtual std::string format(double value) const = 0;
 
     /// 是否在结果面板展示完整的统计分布（mean/std/min/max）。
-    /// RMSE 返回 false（仅显示单一 RMSE 值），其余返回 true。
+    /// MSE 和 RelativeEfficiency 返回 false（仅显示单一值）。
     virtual bool showDistribution() const { return true; }
+
+    // --- 聚合指标扩展（OQ-20）---------------------------------------------
+
+    /// 是否为聚合指标（蒙特卡洛结束后一次性计算，而非每轮迭代评估）。
+    /// 聚合指标使用 finalize() 而非 evaluate() + computeStats()。
+    virtual bool isAggregate() const { return false; }
+
+    /// 聚合指标的后处理计算（MC 循环结束后调用一次）。
+    ///
+    /// @param freqEstimates 每轮迭代估计出的频率（原始 f_i 值）。
+    /// @param sampleRateHz 采样率。
+    /// @param sampleCount 采样点数 (N)。
+    /// @param noiseInfo 噪声分布 + SNR。
+    /// @return 指标值；NaN 表示不适用（如 Uniform/Impulse 分布的 CRB）。
+    ///         Runner 将结果存入 MetricStats::Mean；
+    ///         结果面板经 format() 格式化后单行显示。
+    virtual double finalize(const std::vector<double>& freqEstimates,
+                           double sampleRateHz,
+                           std::size_t sampleCount,
+                           NoiseInfo noiseInfo) const;
 };
 
 } // namespace ispp
 ```
 
-| 实现 | 行为 | 返回值（单次） | 结果面板展示 | `format()` 规则 |
-|---|---|---|---|---|
-| `PercentageErrorMetric` | 与 `result.peaks` 中**误差最小的峰**比较（OQ-6），返回百分比 | `\|Δf\| / f_true × 100%` | `showDistribution() = true`：完整统计列 | 保留三位小数 + `%` 后缀，如 `0.150%` / `12.345%` |
-| `RmseMetric` | 均方根误差：单次返回 `(Δf)²`；MC 聚合后 `mean = MSE`，`sqrt(mean)` = RMSE；`name()` 返回 `"RMSE"`（原 `"MSE"`） | `(Δf)²` | `showDistribution() = false`：**仅显示单一 RMSE 值**；不展示 mean/std/min/max（对这些值求均值和标准差不具有数学意义） | 对 MSE 开根号后以 `%.6e` 显示（如 `1.234e-06`） |
-| `ComputeTimeMetric` | 直接返回 `result.computeTimeSec` | `computeTimeSec` | `showDistribution() = true`：完整统计列 | SI 单位 + 3 位有效数字，如 `375ns` / `5.52us` / `10.5ms` / `1.23s` |
+| 实现 | 类型 | 行为 | 返回值（单次 / 聚合） | 结果面板展示 | `format()` 规则 |
+|---|---|---|---|---|---|
+| `PercentageErrorMetric` | 逐轮 | 与 `result.Peaks` 中**误差最小的峰**比较（OQ-6），返回百分比 | `\|Δf\| / f_true × 100%` | `showDistribution() = true`：完整统计列 | 保留四位小数 + `%` 后缀，如 `0.1500%` / `12.3456%` |
+| `MseMetric` | 逐轮 | 均方误差：单次返回 `(Δf)²`；MC 聚合后 `mean = MSE = 1/M·Σ(Δf)²`；选峰策略 = **max-Prominence**（OQ-21） | `(Δf)²` | `showDistribution() = false`：**仅显示单一 MSE 值**；不展示统计分布 | 直接以 `%.6e` 显示（如 `1.234e-06`），**不再开根号** |
+| `ComputeTimeMetric` | 逐轮 | 直接返回 `result.ComputeTimeSec` | `ComputeTimeSec` | `showDistribution() = true`：完整统计列 | SI 单位 + 3 位有效数字，如 `375ns` / `5.52us` / `10.5ms` / `1.23s` |
+| `RelativeEfficiencyMetric` | 聚合 | 相对效率：`η = CRB / SampleVariance`（OQ-20）；高斯/拉普拉斯有 CRB 解析式，均匀/脉冲不满足正则条件→返回 NaN | `finalize()` 返回 η 或 NaN | `showDistribution() = false`：单行显示（MSE 下方） | NaN → `"N/A"`；有效值保留六位小数（如 `0.987654`） |
+
+#### 6.4.1 RelativeEfficiencyMetric 实现规约（OQ-20）
+
+**CRB（Cramér–Rao 下界）解析式**——单频正弦信号（幅度 = 1.0）叠加加性噪声：
+
+| 噪声分布 | CRB 表达式 | 正则条件 |
+|---|---|---|
+| Gaussian | `6·fs²·σ² / (π²·N·(N²−1))` | ✅ 满足 |
+| Laplacian | `3·fs²·σ² / (π²·N·(N²−1))` | ✅ 满足 |
+| Uniform | — | ❌ 不满足（密度函数不处处可导） |
+| Impulse | — | ❌ 不满足（离散概率质量） |
+
+其中 `σ`（噪声标准差）由 SNR 推导（信号幅度固定 1.0）：
+
+```text
+信号功率 = A²/2 = 0.5
+噪声功率 = 0.5 / 10^(SNR_dB / 10)
+σ = √(噪声功率)
+```
+
+**SampleVariance**（估计频率的样本方差）：
+
+```text
+f_avg = 1/M · Σ f_i
+SampleVariance = 1/(M−1) · Σ (f_i − f_avg)²
+```
+
+> 注意：`computeStats()` 内部已对 `metric_samples` 计算 `std = √(sample_variance)`，
+> 但那是针对 `(Δf)²` 的方差（MSE 指标的样本），不是频率估计本身的方差。
+> RelativeEfficiency 需要的是**原始 f_i 的样本方差**，因此 Runner 单独收集
+> `freqEstimates` 并传入 `finalize()`。
+
+**`finalize()` 返回值**：
+
+```text
+若 noiseInfo.Distribution ∈ {UNIFORM, IMPULSE}:
+    return NaN     // CRB 未定义 → 面板显示 "N/A"
+若 M < 2:
+    return NaN     // 无法计算样本方差
+否则:
+    η = CRB / SampleVariance
+    return η       // 典型范围 [0, 1]；越接近 1 表示估计器越高效
+```
+
+**`format()` 规则**：
+
+```cpp
+std::string format(double value) const {
+    if (std::isnan(value))
+        return "N/A";
+    return std::format("{:.6f}", value);
+}
+```
 
 ---
 
@@ -757,20 +863,22 @@ private:
 ### 7.4 `ExperimentRunner::run()` 实现规约（**完整实现**）
 
 ```text
-1. 预解析：binHz = sampleRate / sampleCount
-2. 为每个 metric 准备 samples: vector<vector<double>>
-3. RunResult result; result.LastTrueFrequencyHz = config.signal.frequencyHz;
-   result.LastInterferenceDeltaHz = config.env.interference.deltaBins * binHz;
-4. for i in [0, iterationCount):
-   a. 若 isCancelled() → break
-   b. Rng rng(config.monteCarlo.baseSeed + i);
-   c. RealArray input = SignalGenerator::generate(config.signal, config.env, rng);
-   d. 计时开始（包含窗函数施加）
-   e. applyWindow(input, config.env.window.kind);
+ 1. 预解析：binHz = sampleRate / sampleCount
+ 2. 为每个非聚合 metric 准备 samples: vector<vector<double>>
+    检查是否存在聚合 metric（hasAggregate = any_of(metrics, isAggregate)）
+    若 hasAggregate：声明 vector<double> freqEstimates（收集原始 f_i）
+ 3. RunResult result; result.LastTrueFrequencyHz = config.signal.frequencyHz;
+    result.LastInterferenceDeltaHz = config.env.interference.deltaBins * binHz;
+ 4. for i in [0, iterationCount):
+    a. 若 isCancelled() → break
+    b. Rng rng(config.monteCarlo.baseSeed + i);
+    c. RealArray input = SignalGenerator::generate(config.signal, config.env, rng);
+    d. 计时开始（包含窗函数施加）
+    e. applyWindow(input, config.env.window.kind);
     f. 构造 EstimationContext 并传给 estimator：
 
        ```text
-       frequencyCount = config.monteCarlo.maxFreqCount +
+       frequencyCount = config.maxFreqCount +
                         (config.env.interference.deltaBins != 0 ? 1 : 0);
        NoiseInfo noiseInfo{config.env.noise.distribution, config.env.noise.snrDb};
        EstimationContext ctx{/*sampleRateHz*/ sampleRate,
@@ -779,20 +887,34 @@ private:
                              /*noiseInfo*/     noiseInfo};
        auto peaks = estimator_->estimate(input, ctx);
        ```
+
     g. 计时结束 → 组装 EstimationResult{std::move(peaks), computeSec}
-    h. for each metric: samples[m].push_back(metric->evaluate(trueFreq, er))
-    i. 若 i == iterationCount - 1：缓存 lastInputSignal / lastSpectrum* / lastPeaks
+    h. for each metric m:
+         若 metric->isAggregate()：skip（聚合指标不参与逐轮评估）
+         否则：samples[m].push_back(metric->evaluate(trueFreq, er))
+    i. 若 hasAggregate 且 er.Peaks 非空：
+         bestFreq = Prominence 最大的峰的频率（OQ-21 选峰策略）
+         freqEstimates.push_back(bestFreq)
+    j. 若 i == iterationCount - 1：缓存 LastInputSignal / LastSpectrum* / LastPeaks
        （频谱通过 computeDft(input) 计算，复用 core/fft）
-    j. onProgress((i + 1) / iterationCount)
-5. for each metric m: result.Metrics.push_back({m, computeStats(samples[m])})
-6. result.totalRuntimeSec = 全程计时
-7. return result;
+    k. onProgress((i + 1) / iterationCount)
+ 5. for each metric m:
+      若 metric->isAggregate():
+        value = metric->finalize(freqEstimates, sampleRate, N, noiseInfo)
+        result.Metrics.push_back({m, MetricStats{.Mean = value}})
+      否则:
+        result.Metrics.push_back({m, computeStats(samples[m])})
+ 6. result.TotalRuntimeSec = 全程计时
+ 7. return result;
 ```
 
 **关键不变量**：
 - Runner 仅依赖 `IEstimator` 和 `IMetric` 接口；用户实现算法后**无需修改 Runner**。
 - `iterationCount == 1` 时 `MetricStats` 四字段均等于该次单值。
 - RNG 种子策略保证相同 `baseSeed` 下结果可复现。
+- 聚合指标（`isAggregate() == true`）的 `MetricStats` 仅使用 `Mean` 字段；
+  `Std` / `Min` / `Max` 初始化为零但因 `showDistribution() == false` 不会被显示。
+- `freqEstimates` 仅在存在聚合 metric 时收集，避免无谓开销。
 
 ---
 
@@ -848,7 +970,7 @@ src/ui/
 - 蒙特卡洛次数（默认 100）
 - 基准种子（可编辑）
 - 算法选择（4 选 1，单选）
-- 评价指标：**全部始终启用**（不再提供勾选；移除 MetricsMask / Metrics 多选区域；`ExperimentRunner` 始终注册三个指标：PercentageError、RMSE、ComputeTime）
+- 评价指标：**全部始终启用**（不再提供勾选；移除 MetricsMask / Metrics 多选区域；`ExperimentRunner` 始终注册四个指标：PercentageError、MSE、ComputeTime、RelativeEfficiency）
 - **"运行" 按钮**：触发后台 `ExperimentRunner::run()`
 
 ### 8.4 频谱面板（ImPlot）
@@ -871,12 +993,12 @@ src/ui/
 
 ### 8.5 结果面板
 
-- 遍历 `PerMetricStats`，按各 metric 的 `showDistribution()` 分两种展示：
+- 遍历 `Metrics`，按各 metric 的 `showDistribution()` 分两种展示：
 
   | `showDistribution()` | 展示方式 |
   |---|---|
   | `true`（PercentageError、ComputeTime） | 表格行：`Metric \| Mean \| Std \| Min \| Max`；每个统计值经 `metric.format()` 格式化后显示 |
-  | `false`（RMSE） | 单行：`"RMSE: <formatted_value>"`；`formatted_value = metric.format(mean)`（对 MSE 开根号 → RMSE） |
+  | `false`（MSE、RelativeEfficiency） | 单行：`"<name>: <formatted_value>"`；MSE 直接显示 `1/M·Σ(Δf)²`（`%.6e`）；RelativeEfficiency 显示 `η`（六位小数如 `0.987654`）或 `"N/A"`（Uniform / Impulse 分布） |
 
 - `iterationCount == 1` 时仅显示单值列（其他列隐藏或显示同值）
 - 末次 `computeTimeSec` 单独标注
@@ -999,7 +1121,7 @@ endif()
 | `core/peak_finder.{h,tpp}` | 全部（通用一维寻峰模板：findPeaks + 中值滤波 / prominence / FWHM） |
 | `core/rng.{h,cpp}` | 全部（四分布抽样：normal / uniform / laplace / impulse） |
 | `signal/signal_generator.{h,cpp}` | 全部（正弦生成 + 干扰叠加 + 噪声注入） |
-| `metrics/*.{h,cpp}` | 全部（PercentageError / RMSE / ComputeTime，含各自 `format()` / `showDistribution()` 实现） |
+| `metrics/*.{h,cpp}` | 全部（PercentageError / MSE / ComputeTime / RelativeEfficiency，含各自 `format()` / `showDistribution()` / `isAggregate()` / `finalize()` 实现） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
 | `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
@@ -1053,6 +1175,10 @@ endif()
 | OQ-15 | 频谱轴自动重拟合 | `SetupAxisLimits` 默认 `ImPlotCond_Once` 仅首帧生效。修复：`SpectrumPanel` 跟踪输入信号堆指针检测数据变更，变更帧使用 `ImPlotCond_Always` 强制重设，其余帧 `ImPlotCond_Once` 保留用户缩放 |
 | OQ-16 | 干扰频率参考线 | `RunResult` 新增 `LastInterferenceDeltaHz`（= `deltaBins × binHz`）；频谱面板在非零时绘制 `TRUE_FREQ + deltaHz` 的竖线 |
 | OQ-17 | 信号幅度参数移除 | `SignalSpec` 不再包含 `Amplitude` 字段；信号生成固定幅度 1.0。干扰 `InterferenceSpec::Amplitude` 保留，但其语义为相对于信号基准（1.0）的线性比值。噪声功率计算相应简化（信号 RMS = 1/√2）。UI 配置面板移除信号幅度控件 |
+| OQ-18 | FrequencyPeak.Prominence | `FrequencyPeak` 新增 `Prominence` 字段 + `PROMINENCE_UNKNOWN` 哨兵常量。FFT Peak 经由 `findPeaksFromDft`（内部委托 `PeakFinder`）获得有意义的拓扑突出度；FFT Interpolate 的精修频率无对应峰 → `PROMINENCE_UNKNOWN`；MUSIC / ESPRIT 若对伪谱调用 `PeakFinder` 则获得伪谱域 Prominence（当前骨架阶段设为 `PROMINENCE_UNKNOWN`） |
+| OQ-19 | MSE 替代 RMSE | 撤销 OQ-12 的 RMSE 决策。`RmseMetric` 重命名为 `MseMetric`（文件 `rmse.{h,cpp}` → `mse.{h,cpp}`）；`evaluate()` 仍返回 `(Δf)²`；`format()` **不再开根号**——MC 均值 `= MSE = 1/M·Σ(Δf)²` 直接显示；`name()` 返回 `"MSE"` |
+| OQ-20 | 相对效率聚合指标 | 新增 `RelativeEfficiencyMetric`（`isAggregate() = true`）：`η = CRB / SampleVariance`。CRB 对高斯分布 = `6fs²σ²/(π²N(N²-1))`、拉普拉斯分布 = `3fs²σ²/(π²N(N²-1))`（σ = 噪声标准差，由 SNR + 信号幅度 1.0 推导）；均匀/脉冲分布不满足正则条件 → NaN → 面板显示 "N/A"。SampleVariance = `1/(M-1)·Σ(f_i-f_avg)²`。`IMetric` 扩展 `isAggregate()` / `finalize()`；Runner 收集原始 `freqEstimates` 供聚合计算 |
+| OQ-21 | MSE / RelativeEfficiency 选峰策略 | 撤销 OQ-6 中"选取误差最小峰"的决策（仅对 MSE 和 RelativeEfficiency 生效）。改为选取 **Prominence 最大的峰**——因为实际频率估计中无法预知真实频率，只能依赖峰值本身的显著度来判定主峰。PercentageError 保留 OQ-6 的 min-error 策略（衡量估计器能达到的最优精度）。FFT Peak 经由 PeakFinder 提供有意义的 Prominence；FFT Interpolate 返回单峰时无歧义 |
 
 ---
 

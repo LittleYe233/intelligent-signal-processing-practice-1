@@ -5,7 +5,7 @@
 ## Project
 
 **ISPPracticeOne** — C++20 signal frequency estimation simulation framework (MSYS2 UCRT64).
-Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.3).
+Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.5).
 
 ## Current Status
 
@@ -13,6 +13,7 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 
 | Hash | Message |
 |---|---|
+| `f9f800d` | ♻️ refactor(signal): remove amplitude parameter, fix to 1.0 |
 | `ad94f78` | 🐛 fix(ui): auto-refit spectrum axes on new experiment data |
 | `a73421b` | fix(ui): fix double shutdown() error |
 | `85e330f` | ✨ feat(metrics): revise metric display with per-metric formatting and correct RMSE |
@@ -56,10 +57,35 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - **i18n layer** (`de01c29` + `f422992`) — GNU gettext integration with two text domains (`ui`/`con`), Win32 locale auto-detection, zh_CN translation. Outside M1–M6 scope; user-initiated enhancement.
 - **Metrics revision** (`85e330f`) — removed metric enable/disable checkbox; corrected RMSE (was computing MSE, name was `"MSE"`); added per-metric `format()` + `showDistribution()` to `IMetric`; `RunResult` changed from `unordered_map<string, MetricStats>` to `vector<MetricResult>`. Doc tracked as v1.2 in `development_solution.md` (§6.4, §8.3, §8.5, OQ-11/12/13). Outside M1–M6 scope; user-initiated revision.
 - **UI bug fixes** (`a73421b` + `ad94f78`) — fixed double-shutdown segfault on window close (OQ-14); fixed ImPlot axis auto-refit on new experiment data via conditional `ImPlotCond` (OQ-15); added interference frequency reference line (OQ-16); spectrum plots wrapped in resizable `BeginChild` containers. Doc tracked as v1.3 in `development_solution.md` (§7.3, §8.4, §8.7, OQ-14~16).
+- **Signal amplitude removal** (`f9f800d`) — removed `SignalSpec::Amplitude`; fixed to 1.0; interference amplitude now implicitly relative. Doc tracked as v1.4 (§5.2, §6.2, §8.3, OQ-17).
+- **Metrics architecture redesign** (uncommitted, this session, doc v1.5 OQ-18~21) — three changes fully implemented:
+  1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18) — `types.h`, `fft.cpp` (`.Prominence = p.Prominence`), `fft_interpolate.cpp` (`.Prominence = PROMINENCE_UNKNOWN`)
+  2. `RmseMetric` → `MseMetric`: files renamed `rmse.{h,cpp}` → `mse.{h,cpp}`; `format()` no sqrt; `name()` → `"MSE"`; peak selection changed to max-Prominence (OQ-19 + OQ-21)
+  3. New `RelativeEfficiencyMetric` (aggregate): `η = CRB/SampleVariance`; `IMetric` extended with `isAggregate()` / `finalize()`; Runner collects raw `freqEstimates` via max-Prominence selection (OQ-20)
 
 ### Working tree
 
-**Clean** — all work committed. No pending files.
+**Pending (uncommitted)** — v1.5 metrics architecture redesign, **build verified**:
+
+**New files (4)**:
+- `include/ispp/metrics/mse.h` — `MseMetric` class (max-Prominence peak selection, no sqrt in format)
+- `include/ispp/metrics/relative_efficiency.h` — `RelativeEfficiencyMetric` (aggregate, `isAggregate() = true`)
+- `src/metrics/mse.cpp` — MSE implementation
+- `src/metrics/relative_efficiency.cpp` — CRB computation + sample variance + `finalize()`
+
+**Deleted files (2)**:
+- `include/ispp/metrics/rmse.h` — replaced by `mse.h`
+- `src/metrics/rmse.cpp` — replaced by `mse.cpp`
+
+**Modified files (9)**:
+- `include/ispp/core/types.h` — `PROMINENCE_UNKNOWN` constant + `FrequencyPeak::Prominence` field
+- `include/ispp/metrics/metric.h` — `isAggregate()` + `finalize()` virtual methods + includes
+- `src/core/fft.cpp` — `.Prominence = p.Prominence` in `findPeaksFromDft`
+- `src/estimator/fft_interpolate.cpp` — `.Prominence = PROMINENCE_UNKNOWN`
+- `src/experiment/experiment_runner.cpp` — `has_aggregate` check + `freq_estimates` collection (max-Prominence) + `finalize()` call + moved `NOISE_INFO`/`FREQ_CNT` before loop
+- `src/ui/panels/config_panel.cpp` — `#include mse.h` + `relative_efficiency.h`; registers 4 metrics
+- `CMakeLists.txt` — `rmse.cpp` → `mse.cpp` + add `relative_efficiency.cpp`
+- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — "RMSE" → "MSE"; add "Relative Efficiency" + "N/A"
 
 ### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
 
@@ -82,10 +108,11 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `src/estimator/music.cpp` — ⏳ skeleton stub (user must implement with Eigen; can use `PeakFinder` on pseudospectrum directly per §6.3)
 - `src/estimator/esprit.cpp` — ⏳ skeleton stub (user must implement with Eigen)
 
-**Metrics layer** (revised in `85e330f` — `format()` + `showDistribution()` added to `IMetric`):
-- `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 4 decimal places + `%` suffix (precision bumped 3→4 in `ad94f78`)
-- `src/metrics/rmse.cpp` — ✅ returns `(Δf)²` per iteration (MC mean = MSE); `name()` = `"RMSE"` (was `"MSE"`); `format(value)` = `sqrt(value)` → `{:.6e}`; `showDistribution()` = `false` (single-value display, no mean/std/min/max row)
+**Metrics layer** (revised in `85e330f` + v1.5 architecture implemented this session):
+- `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 4 decimal places + `%` suffix
+- `src/metrics/mse.cpp` — ✅ (was `rmse.cpp`) returns `(Δf)²` per iteration; MC mean `= MSE = 1/M·Σ(Δf)²`; `format()` = `{:.6e}` (**no sqrt**); `showDistribution() = false`; peak selection = max-Prominence (OQ-21)
 - `src/metrics/compute_time.cpp` — ✅ returns `result.ComputeTimeSec`; `format()` = SI units (`ns`/`us`/`ms`/`s`) + 3 significant digits
+- `src/metrics/relative_efficiency.cpp` — ✅ NEW (OQ-20). Aggregate metric: `η = CRB/SampleVariance`; `isAggregate() = true`; Gaussian/Laplacian → `{:.6f}`; Uniform/Impulse → NaN → "N/A"; `finalize()` computes sample variance from raw `freqEstimates` + CRB from (fs, N, SNR, distribution)
 
 **Experiment layer**:
 - `src/experiment/statistics.cpp` — ✅ mean/std/min/max
@@ -454,6 +481,6 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v1.3**, ~1056 lines). Updated through: PeakFinder §5.5 (v1.1); metrics revision §6.4/§8.3/§8.5/OQ-11~13 (v1.2); RunResult struct sync §7.3, spectrum panel §8.4, RAII shutdown §8.7, OQ-14~16 (v1.3). **i18n layer NOT documented here** — it is user-initiated scope outside M1–M6.
+- `.opencode/context/development_solution.md` — authoritative plan (**v1.5**, ~1136 lines). Updated through: PeakFinder §5.5 (v1.1); metrics revision §6.4/§8.3/§8.5/OQ-11~13 (v1.2); RunResult struct sync §7.3, spectrum panel §8.4, RAII shutdown §8.7, OQ-14~16 (v1.3); signal amplitude removal §5.2/§6.2/§8.3/OQ-17 (v1.4); FrequencyPeak.Prominence §5.1/§5.4/§6.3, MSE rename §6.4/§8.3/§8.5/OQ-19, RelativeEfficiency + IMetric aggregate extension §6.4/§6.4.1/§7.4/OQ-20 (v1.5). **i18n layer NOT documented here** — it is user-initiated scope outside M1–M6.
 - `.opencode/context/progress.md` — this file
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)

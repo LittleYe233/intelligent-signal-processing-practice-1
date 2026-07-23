@@ -3,6 +3,7 @@
 #include "ispp/core/rng.h"
 #include "ispp/signal/signal_generator.h"
 #include "ispp/window/window.h"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <utility>
@@ -37,6 +38,28 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
     // 每个指标收集一次蒙特卡洛的样本值
     std::vector<std::vector<double>> metric_samples(Metrics.size());
 
+    // 检查是否存在聚合指标（OQ-20）
+    bool has_aggregate = false;
+    for (const auto &m : Metrics) {
+        if (m->isAggregate()) {
+            has_aggregate = true;
+            break;
+        }
+    }
+
+    // 聚合指标需要的原始频率估计（OQ-21: max-Prominence 选峰）
+    std::vector<double> freq_estimates;
+    if (has_aggregate) {
+        freq_estimates.reserve(MC_CNT);
+    }
+
+    // NoiseInfo + FrequencyCount：不随迭代变化，提前计算
+    const NoiseInfo NOISE_INFO{.Distribution = Config.Env.Noise.Distribution,
+                               .SnrDb = Config.Env.Noise.SnrDb};
+    const std::size_t FREQ_CNT =
+        Config.MaxFreqCount +
+        (Config.Env.Interference.DeltaBins != 0.0 ? 1 : 0);
+
     auto overall_start = std::chrono::steady_clock::now();
 
     for (std::size_t iter = 0; iter < MC_CNT; ++iter) {
@@ -55,12 +78,6 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
         applyWindow(input, Config.Env.Window.Kind);
 
         // --- 3. 频率估计（由 Runner 组装 EstimationResult 并注入计时） ---
-        const std::size_t FREQ_CNT =
-            Config.MaxFreqCount +
-            (Config.Env.Interference.DeltaBins != 0.0 ? 1 : 0);
-        const NoiseInfo NOISE_INFO{.Distribution =
-                                       Config.Env.Noise.Distribution,
-                                   .SnrDb = Config.Env.Noise.SnrDb};
         const EstimationContext CTX{
             .SampleRateHz = SAMPLE_RATE,
             .WindowKind = Config.Env.Window.Kind,
@@ -75,11 +92,22 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
         EstimationResult est_result{.Peaks = std::move(peaks),
                                     .ComputeTimeSec = compute_sec};
 
-        // --- 4. 评价指标 ---
+        // --- 4. 评价指标（跳过聚合指标） ---
         for (std::size_t m = 0; m < Metrics.size(); ++m) {
+            if (Metrics[m]->isAggregate()) {
+                continue;
+            }
             double val =
                 Metrics[m]->evaluate(Config.Signal.FrequencyHz, est_result);
             metric_samples[m].push_back(val);
+        }
+
+        // --- 4b. 收集原始频率估计（供聚合指标，OQ-21 max-Prominence） ---
+        if (has_aggregate && !est_result.Peaks.empty()) {
+            auto best = std::ranges::max_element(
+                est_result.Peaks, std::less<>{},
+                [](const FrequencyPeak &p) { return p.Prominence; });
+            freq_estimates.push_back(best->FrequencyHz);
         }
 
         // --- 5. 末次迭代缓存（可视化数据） ---
@@ -113,10 +141,21 @@ RunResult ExperimentRunner::run(const ProgressCallback &on_progress) {
 
     // --- 聚合每指标统计 ---
     for (std::size_t m = 0; m < Metrics.size(); ++m) {
-        result.Metrics.push_back({
-            .MetricObj = Metrics[m],
-            .Stats = computeStats(metric_samples[m]),
-        });
+        if (Metrics[m]->isAggregate()) {
+            const double VAL = Metrics[m]->finalize(freq_estimates, SAMPLE_RATE,
+                                                    N, NOISE_INFO);
+            result.Metrics.push_back({
+                .MetricObj = Metrics[m],
+                .Stats =
+                    MetricStats{
+                        .Mean = VAL, .Std = 0.0, .Min = 0.0, .Max = 0.0},
+            });
+        } else {
+            result.Metrics.push_back({
+                .MetricObj = Metrics[m],
+                .Stats = computeStats(metric_samples[m]),
+            });
+        }
     }
 
     return result;

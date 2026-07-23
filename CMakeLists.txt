@@ -145,8 +145,9 @@ set(ISPP_SOURCES
     src/estimator/esprit.cpp
     # Metrics
     src/metrics/percentage_error.cpp
-    src/metrics/rmse.cpp
+    src/metrics/mse.cpp
     src/metrics/compute_time.cpp
+    src/metrics/relative_efficiency.cpp
     # Experiment (M1)
     src/experiment/statistics.cpp
     src/experiment/experiment_runner.cpp
