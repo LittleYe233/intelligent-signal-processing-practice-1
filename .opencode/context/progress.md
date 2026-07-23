@@ -61,31 +61,21 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - **Metrics architecture redesign** (uncommitted, this session, doc v1.5 OQ-18~21) — three changes fully implemented:
   1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18) — `types.h`, `fft.cpp` (`.Prominence = p.Prominence`), `fft_interpolate.cpp` (`.Prominence = PROMINENCE_UNKNOWN`)
   2. `RmseMetric` → `MseMetric`: files renamed `rmse.{h,cpp}` → `mse.{h,cpp}`; `format()` no sqrt; `name()` → `"MSE"`; peak selection changed to max-Prominence (OQ-19 + OQ-21)
-  3. New `RelativeEfficiencyMetric` (aggregate): `η = CRB/SampleVariance`; `IMetric` extended with `isAggregate()` / `finalize()`; Runner collects raw `freqEstimates` via max-Prominence selection (OQ-20)
+  3. New `RelativeEfficiencyMetric` (aggregate): `η = CRB/SampleVariance`; `IMetric` extended with `isAggregate()` / `finalize()`. **⚠️ Currently DISABLED** — model assumptions don't match CRB conditions; code retained but not wired into Runner / UI
 
 ### Working tree
 
-**Pending (uncommitted)** — v1.5 metrics architecture redesign, **build verified**:
+**Pending (uncommitted)** — RelativeEfficiency metric disabled + doc sync:
 
-**New files (4)**:
-- `include/ispp/metrics/mse.h` — `MseMetric` class (max-Prominence peak selection, no sqrt in format)
-- `include/ispp/metrics/relative_efficiency.h` — `RelativeEfficiencyMetric` (aggregate, `isAggregate() = true`)
-- `src/metrics/mse.cpp` — MSE implementation
-- `src/metrics/relative_efficiency.cpp` — CRB computation + sample variance + `finalize()`
+**Modified files (4)**:
+- `src/experiment/experiment_runner.cpp` — removed aggregate metric wiring (`has_aggregate` / `freq_estimates` / `finalize()` call); restored simple evaluate+computeStats loop
+- `src/ui/panels/config_panel.cpp` — removed `RelativeEfficiencyMetric` include + registration (back to 3 metrics)
+- `include/ispp/metrics/relative_efficiency.h` — added disabled `@note` + re-enablement instructions
+- `src/metrics/relative_efficiency.cpp` — added disabled comment header
 
-**Deleted files (2)**:
-- `include/ispp/metrics/rmse.h` — replaced by `mse.h`
-- `src/metrics/rmse.cpp` — replaced by `mse.cpp`
-
-**Modified files (9)**:
-- `include/ispp/core/types.h` — `PROMINENCE_UNKNOWN` constant + `FrequencyPeak::Prominence` field
-- `include/ispp/metrics/metric.h` — `isAggregate()` + `finalize()` virtual methods + includes
-- `src/core/fft.cpp` — `.Prominence = p.Prominence` in `findPeaksFromDft`
-- `src/estimator/fft_interpolate.cpp` — `.Prominence = PROMINENCE_UNKNOWN`
-- `src/experiment/experiment_runner.cpp` — `has_aggregate` check + `freq_estimates` collection (max-Prominence) + `finalize()` call + moved `NOISE_INFO`/`FREQ_CNT` before loop
-- `src/ui/panels/config_panel.cpp` — `#include mse.h` + `relative_efficiency.h`; registers 4 metrics
-- `CMakeLists.txt` — `rmse.cpp` → `mse.cpp` + add `relative_efficiency.cpp`
-- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — "RMSE" → "MSE"; add "Relative Efficiency" + "N/A"
+**Doc/context (2)**:
+- `.opencode/context/development_solution.md` — §6.4 table + §8.3 + OQ-20 updated to reflect disabled status
+- `.opencode/context/progress.md` — this file
 
 ### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
 
@@ -112,7 +102,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 4 decimal places + `%` suffix
 - `src/metrics/mse.cpp` — ✅ (was `rmse.cpp`) returns `(Δf)²` per iteration; MC mean `= MSE = 1/M·Σ(Δf)²`; `format()` = `{:.6e}` (**no sqrt**); `showDistribution() = false`; peak selection = max-Prominence (OQ-21)
 - `src/metrics/compute_time.cpp` — ✅ returns `result.ComputeTimeSec`; `format()` = SI units (`ns`/`us`/`ms`/`s`) + 3 significant digits
-- `src/metrics/relative_efficiency.cpp` — ✅ NEW (OQ-20). Aggregate metric: `η = CRB/SampleVariance`; `isAggregate() = true`; Gaussian/Laplacian → `{:.6f}`; Uniform/Impulse → NaN → "N/A"; `finalize()` computes sample variance from raw `freqEstimates` + CRB from (fs, N, SNR, distribution)
+- `src/metrics/relative_efficiency.cpp` — ⏳ **DISABLED** (OQ-20). Aggregate metric: `η = CRB/SampleVariance`; `isAggregate() = true`. Code retained and compiled but **not registered** in Runner or config panel. Current model assumptions don't match CRB regularity conditions. To re-enable: restore aggregate handling in `experiment_runner.cpp` + register in `config_panel.cpp`
 
 **Experiment layer**:
 - `src/experiment/statistics.cpp` — ✅ mean/std/min/max

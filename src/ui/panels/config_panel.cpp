@@ -8,7 +8,6 @@
 #include "ispp/metrics/compute_time.h"
 #include "ispp/metrics/mse.h"
 #include "ispp/metrics/percentage_error.h"
-#include "ispp/metrics/relative_efficiency.h"
 #include "ispp/ui/widgets/enum_combo.h"
 #include <array>
 #include <imgui.h>
@@ -124,7 +123,6 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
         metrics.push_back(std::make_shared<PercentageErrorMetric>());
         metrics.push_back(std::make_shared<MseMetric>());
         metrics.push_back(std::make_shared<ComputeTimeMetric>());
-        metrics.push_back(std::make_shared<RelativeEfficiencyMetric>());
         state.Pending = true;
     }
 

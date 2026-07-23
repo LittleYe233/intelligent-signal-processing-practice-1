@@ -4,7 +4,7 @@
 |---|---|
 | 文档版本 | v1.5 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-23（FrequencyPeak 新增 Prominence 字段；RMSE 改回 MSE；新增 RelativeEfficiency 聚合指标 + IMetric 扩展；MSE/RelativeEfficiency 改用 max-Prominence 选峰。见 §5.1 / §5.4 / §6.4 / §7.4 / §8.3 / §8.5 / OQ-18~21） |
+| 最近修订 | 2026-07-23（RelativeEfficiency 指标暂时禁用——模型假设与 CRB 正则化条件不完全匹配。代码保留但不在 Runner / UI 中调用。见 §6.4 / §8.3 / OQ-20） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -684,7 +684,7 @@ public:
 | `PercentageErrorMetric` | 逐轮 | 与 `result.Peaks` 中**误差最小的峰**比较（OQ-6），返回百分比 | `\|Δf\| / f_true × 100%` | `showDistribution() = true`：完整统计列 | 保留四位小数 + `%` 后缀，如 `0.1500%` / `12.3456%` |
 | `MseMetric` | 逐轮 | 均方误差：单次返回 `(Δf)²`；MC 聚合后 `mean = MSE = 1/M·Σ(Δf)²`；选峰策略 = **max-Prominence**（OQ-21） | `(Δf)²` | `showDistribution() = false`：**仅显示单一 MSE 值**；不展示统计分布 | 直接以 `%.6e` 显示（如 `1.234e-06`），**不再开根号** |
 | `ComputeTimeMetric` | 逐轮 | 直接返回 `result.ComputeTimeSec` | `ComputeTimeSec` | `showDistribution() = true`：完整统计列 | SI 单位 + 3 位有效数字，如 `375ns` / `5.52us` / `10.5ms` / `1.23s` |
-| `RelativeEfficiencyMetric` | 聚合 | 相对效率：`η = CRB / SampleVariance`（OQ-20）；高斯/拉普拉斯有 CRB 解析式，均匀/脉冲不满足正则条件→返回 NaN | `finalize()` 返回 η 或 NaN | `showDistribution() = false`：单行显示（MSE 下方） | NaN → `"N/A"`；有效值保留六位小数（如 `0.987654`） |
+| `RelativeEfficiencyMetric` | 聚合 | 相对效率：`η = CRB / SampleVariance`（OQ-20）；高斯/拉普拉斯有 CRB 解析式，均匀/脉冲不满足正则条件→返回 NaN。**⚠️ 当前已禁用**——模型假设不完全匹配 CRB 条件；代码保留但未注册到 Runner / UI（见 OQ-20 更新） | `finalize()` 返回 η 或 NaN | `showDistribution() = false`：单行显示（MSE 下方） | NaN → `"N/A"`；有效值保留六位小数（如 `0.987654`） |
 
 #### 6.4.1 RelativeEfficiencyMetric 实现规约（OQ-20）
 
@@ -970,7 +970,7 @@ src/ui/
 - 蒙特卡洛次数（默认 100）
 - 基准种子（可编辑）
 - 算法选择（4 选 1，单选）
-- 评价指标：**全部始终启用**（不再提供勾选；移除 MetricsMask / Metrics 多选区域；`ExperimentRunner` 始终注册四个指标：PercentageError、MSE、ComputeTime、RelativeEfficiency）
+- 评价指标：**全部始终启用**（不再提供勾选；移除 MetricsMask / Metrics 多选区域；`ExperimentRunner` 始终注册三个指标：PercentageError、MSE、ComputeTime。RelativeEfficiencyMetric 暂未注册——见 OQ-20）
 - **"运行" 按钮**：触发后台 `ExperimentRunner::run()`
 
 ### 8.4 频谱面板（ImPlot）
@@ -1177,7 +1177,7 @@ endif()
 | OQ-17 | 信号幅度参数移除 | `SignalSpec` 不再包含 `Amplitude` 字段；信号生成固定幅度 1.0。干扰 `InterferenceSpec::Amplitude` 保留，但其语义为相对于信号基准（1.0）的线性比值。噪声功率计算相应简化（信号 RMS = 1/√2）。UI 配置面板移除信号幅度控件 |
 | OQ-18 | FrequencyPeak.Prominence | `FrequencyPeak` 新增 `Prominence` 字段 + `PROMINENCE_UNKNOWN` 哨兵常量。FFT Peak 经由 `findPeaksFromDft`（内部委托 `PeakFinder`）获得有意义的拓扑突出度；FFT Interpolate 的精修频率无对应峰 → `PROMINENCE_UNKNOWN`；MUSIC / ESPRIT 若对伪谱调用 `PeakFinder` 则获得伪谱域 Prominence（当前骨架阶段设为 `PROMINENCE_UNKNOWN`） |
 | OQ-19 | MSE 替代 RMSE | 撤销 OQ-12 的 RMSE 决策。`RmseMetric` 重命名为 `MseMetric`（文件 `rmse.{h,cpp}` → `mse.{h,cpp}`）；`evaluate()` 仍返回 `(Δf)²`；`format()` **不再开根号**——MC 均值 `= MSE = 1/M·Σ(Δf)²` 直接显示；`name()` 返回 `"MSE"` |
-| OQ-20 | 相对效率聚合指标 | 新增 `RelativeEfficiencyMetric`（`isAggregate() = true`）：`η = CRB / SampleVariance`。CRB 对高斯分布 = `6fs²σ²/(π²N(N²-1))`、拉普拉斯分布 = `3fs²σ²/(π²N(N²-1))`（σ = 噪声标准差，由 SNR + 信号幅度 1.0 推导）；均匀/脉冲分布不满足正则条件 → NaN → 面板显示 "N/A"。SampleVariance = `1/(M-1)·Σ(f_i-f_avg)²`。`IMetric` 扩展 `isAggregate()` / `finalize()`；Runner 收集原始 `freqEstimates` 供聚合计算 |
+| OQ-20 | 相对效率聚合指标 | 新增 `RelativeEfficiencyMetric`（`isAggregate() = true`）：`η = CRB / SampleVariance`。CRB 对高斯分布 = `6fs²σ²/(π²N(N²-1))`、拉普拉斯分布 = `3fs²σ²/(π²N(N²-1))`（σ = 噪声标准差，由 SNR + 信号幅度 1.0 推导）；均匀/脉冲分布不满足正则条件 → NaN → 面板显示 "N/A"。SampleVariance = `1/(M-1)·Σ(f_i-f_avg)²`。`IMetric` 扩展 `isAggregate()` / `finalize()`；Runner 收集原始 `freqEstimates` 供聚合计算。**⚠️ 当前已禁用**——当前仿真模型假设（固定单频 + 可选干扰）与 CRB 正则化条件不完全匹配，实际使用中 η 无可靠意义。代码保留（仍参与编译以防 API 漂移）但未注册到 Runner / UI。重新启用需恢复 `experiment_runner.cpp` 聚合逻辑 + `config_panel.cpp` 注册 |
 | OQ-21 | MSE / RelativeEfficiency 选峰策略 | 撤销 OQ-6 中"选取误差最小峰"的决策（仅对 MSE 和 RelativeEfficiency 生效）。改为选取 **Prominence 最大的峰**——因为实际频率估计中无法预知真实频率，只能依赖峰值本身的显著度来判定主峰。PercentageError 保留 OQ-6 的 min-error 策略（衡量估计器能达到的最优精度）。FFT Peak 经由 PeakFinder 提供有意义的 Prominence；FFT Interpolate 返回单峰时无歧义 |
 
 ---

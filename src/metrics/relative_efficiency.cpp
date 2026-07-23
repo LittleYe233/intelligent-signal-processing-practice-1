@@ -1,3 +1,7 @@
+// DISABLED METRIC (OQ-20) — see relative_efficiency.h for re-enablement steps.
+// This translation unit is compiled to detect API drift but is never linked
+// into the active metric set at runtime.
+
 #include "ispp/metrics/relative_efficiency.h"
 #include "ispp/i18n.h"
 #include <cmath>
