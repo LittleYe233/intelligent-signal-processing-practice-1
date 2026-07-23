@@ -107,7 +107,7 @@ add_library(PocketFFT INTERFACE)
 target_include_directories(PocketFFT INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/pocketfft)
 
 add_library(Eigen INTERFACE)
-target_include_directories(Eigen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen/Eigen)
+target_include_directories(Eigen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen)
 
 # ---------------------------------------------------------------------------
 # Additional CMake Modules
