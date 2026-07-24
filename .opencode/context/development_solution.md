@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.6 |
+| 文档版本 | v1.7 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-23（批量扫描测试架构具体化：7 项测试规格、3 种图表样式、多维扫描维度角色。见 §7.5~§7.7 / §8.8 / OQ-24~26） |
+| 最近修订 | 2026-07-24（LogPanel 环形缓冲区越界修复 OQ-27；Test 7 逐峰模式 OQ-28） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -1049,6 +1049,11 @@ struct ScanTestDef {
 
     /// 固定估计器（当 Algorithm 不是 ChartDim/SeriesDim 时使用）。
     std::shared_ptr<IEstimator> FixedEstimator;
+
+    /// 若为 true，跳过标准 metric 管线，改为逐峰提取百分比误差。
+    /// MC=1，从 LastPeaks 计算每个峰的 |freq−true|/true×100%，按误差
+    /// 升序排列，每个排位画一条 MULTI_LINE 折线（OQ-28）。
+    bool PerPeak = false;
 };
 
 /// 单个系列的统计数据（平行于 XDim.Values）。
@@ -1168,11 +1173,11 @@ run():
 | 4 | SNR scan | SNR: −30~20 step 2.5 (21pts) | — | Algorithm(4) | — | PE | LineWithErrorBands | 4 |
 | 5 | SNR × SampleCount | SNR: −30~20 step 2.5 (21pts) | SampleCount: 64,128,256,512 | — | Est=Interpolate | PE | MultiLine | 1 |
 | 6 | Window × Algorithm | Algorithm: FFT Peak, ESPRIT (2) | WindowKind(4) | — | SNR=−3 | PE | GroupedBarsWithError | 1 |
-| 7 | Interference scan | DeltaBins: 0~4 step 0.2 (21pts) | — | Algorithm(4) | — | PE | LineWithErrorBands | 4 |
+| 7 | Interference scan | DeltaBins: 0~4 step 0.2 (21pts) | — | Algorithm(4) | — | PerPeak | MultiLine | 4 |
 
 **总计 23 张图表。**
 
-**缩写**：PE = PercentageError, CT = ComputeTime, SR = SampleRateHz, Est = Estimator
+**缩写**：PE = PercentageError, CT = ComputeTime, SR = SampleRateHz, Est = Estimator, PerPeak = 逐峰百分比误差模式（MC=1，按距真频排序，每排位一条折线）
 
 ### 各测试详细规格
 
@@ -1199,9 +1204,13 @@ run():
 - 覆盖 `SNR = −3 dB`；X 轴 = 2 种算法（FFT Peak / ESPRIT），系列 = 4 种窗
 - 柱状分组：每组 4 根柱（窗类型），柱高 = PE 均值，误差须 = min~max
 
-**Test 7 — Interference scan**
-- 默认配置；X 轴 21 点（0~0.2~...~4.0 bins）；仅 PE
-- 注：DeltaBins=0 时无干扰，大于 0 时有干扰（需 `MaxFreqCount+1` 的频率分量数）
+**Test 7 — Interference scan（PerPeak 模式, OQ-28）**
+- 默认配置；X 轴 21 点（0~0.2~...~4.0 bins）；4 种算法各一张图
+- `PerPeak = true`：MC=1（确定性单次运行），跳过标准 metric 管线
+- 从 `RunResult::LastPeaks` 提取所有峰，计算各自的 `|freq − true| / true × 100%`
+- 每个 X 点的峰按误差升序排列（rank 0 = 最接近真频）
+- 每个排位画一条折线（Peak 1, Peak 2, …），排位不足的 X 点用 NaN 断线
+- 样式：MULTI_LINE（仅均值，无误差带）
 
 ---
 
@@ -1297,7 +1306,9 @@ src/ui/
 
 ### 8.6 日志面板
 
-- 应用内 `std::string` 消息缓冲（环形缓冲，最近 N 条）
+- 应用内 `std::string` 消息缓冲（环形缓冲，`MAX_LOG = 200`）
+- **线程安全**：`log()` 与 `render()` 均通过 `std::mutex` 互斥
+- **渲染安全（OQ-27）**：`render()` 在锁内将消息复制到 `RenderCopy` 向量，再从副本渲染。`RenderCopy` 在下一帧 `render()` 开头清空（此时上一帧的 `ImGui::Render()` 已消费了指针）。`NextIdx` 无限递增，回绕时用 `NextIdx % MAX_LOG` 分两段遍历，避免越界。
 - 滚动到底；可清空
 - **替代被 `WIN32_EXECUTABLE TRUE` 关闭的 console**
 
@@ -1538,6 +1549,8 @@ endif()
 | OQ-24 | 扫描图表类型选择 | 三种 `ChartStyle`：**LineWithErrorBands**（折线+误差带：均值粗线 / ±std 深色带 / min~max 浅色带；Tests 1/2/4/7）；**GroupedBarsWithError**（分组柱状+误差须：X 轴类别分组，组内多色柱，须线=min~max；Tests 3/6）；**MultiLine**（多折线均值：不同线型区分系列；Test 5）。样式由 `ScanTestDef::Style` 硬编码指定 |
 | OQ-25 | 扫描 metric 提取方式 | 按 **名称匹配**（`IMetric::name() == spec.MetricName`），从 `RunResult::Metrics` 中查找对应 `MetricStats`，提取全部四个字段（Mean/Std/Min/Max）。`showDistribution() == false` 的 metric 仅 Mean 有效 |
 | OQ-26 | 扫描维度角色（X 轴 / 系列 / 分图） | 每条 `ScanDimension` 有三种角色：**XDim**（必选，图表横轴）；**SeriesDim**（可选，同图多色/多线型系列）；**ChartDim**（可选，每个取值生成独立图表）。Algorithm 作为特殊维度，由 `ALL_ALGORITHMS` 注册表解析为 `IEstimator`。若 Algorithm 不是 ChartDim/SeriesDim，则使用 `FixedEstimator` |
+| OQ-27 | LogPanel 环形缓冲区越界 | `NextIdx` 无限递增（总写入计数），`render()` 以 `NextIdx` 为上界遍历 `Messages`。缓冲区回绕后（`NextIdx ≥ MAX_LOG`）循环越过 `Messages.size()` → 主线程 SIGSEGV。修复：回绕时用 `NextIdx % MAX_LOG` 分两段渲染；同时在锁内复制到 `RenderCopy` 向量再渲染，防止工作线程覆写导致悬垂 `c_str()` 指针 |
+| OQ-28 | Test 7 逐峰百分比误差 | `PerPeak = true` 跳过标准 metric 管线。MC=1 确定性运行，从 `LastPeaks` 提取所有峰并计算各自百分比误差，按误差升序排列。每个排位（Peak 1 = 最接近真频）画一条 MULTI_LINE 折线；排位不足处用 NaN 断线。适用于可视化干扰导致的频率分裂 |
 
 ---
 

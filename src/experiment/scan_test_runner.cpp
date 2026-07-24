@@ -8,7 +8,9 @@
 #include "ispp/metrics/compute_time.h"
 #include "ispp/metrics/mse.h"
 #include "ispp/metrics/percentage_error.h"
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -313,8 +315,9 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
                                    .Values = {0.0, 1.0, 2.0, 3.0},
                                    .Labels = {ALGOS[0].Name, ALGOS[1].Name,
                                               ALGOS[2].Name, ALGOS[3].Name}};
-        t.MetricNames = {"Percentage Error"};
-        t.Style = ChartStyle::LINE_WITH_ERROR_BANDS;
+        t.MetricNames = {};
+        t.Style = ChartStyle::MULTI_LINE;
+        t.PerPeak = true;
         t.FixedEstimator = nullptr;
         tests.push_back(std::move(t));
     }
@@ -348,13 +351,158 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
         std::size_t chart_n = test.ChartDim ? test.ChartDim->Values.size() : 1;
         std::size_t series_n =
             test.SeriesDim ? test.SeriesDim->Values.size() : 1;
-        total_points += chart_n * test.MetricNames.size() * series_n *
-                        test.XDim.Values.size();
+        std::size_t n_metrics =
+            test.MetricNames.empty() ? 1 : test.MetricNames.size();
+        total_points +=
+            chart_n * n_metrics * series_n * test.XDim.Values.size();
     }
 
     std::size_t completed = 0;
 
     for (const auto &test : Tests) {
+        // ================================================================
+        //  Per-peak mode: 逐峰百分比误差（test.PerPeak == true）
+        // ================================================================
+        if (test.PerPeak) {
+            const std::vector<double> CHART_VALS =
+                test.ChartDim ? test.ChartDim->Values
+                              : std::vector<double>{0.0};
+            const auto ALGOS = getAllAlgorithms();
+            const std::size_t N_ALGO = ALGOS.size();
+            const std::size_t N = test.XDim.Values.size();
+
+            ScanTestOutput output;
+            output.Name = test.Name;
+
+            for (std::size_t ci = 0; ci < CHART_VALS.size(); ++ci) {
+                const double CV = CHART_VALS[ci];
+
+                // Collect per-peak errors for each X point
+                // ranked_errors[xi] = sorted vector of |freq - true|/true*100%
+                std::vector<std::vector<double>> ranked_errors(N);
+
+                for (std::size_t xi = 0; xi < N; ++xi) {
+                    if (Cancelled.load()) {
+                        goto done;
+                    }
+
+                    const double XV = test.XDim.Values[xi];
+
+                    ExperimentConfig cfg = makeDefaultConfig();
+                    // Per-peak mode: single deterministic run
+                    cfg.MonteCarlo.IterationCount = 1;
+                    for (const auto &[sp, val] : test.Overrides) {
+                        applyScanParam(cfg, sp, val);
+                    }
+                    applyScanParam(cfg, test.XDim.Param, XV);
+                    if (test.ChartDim) {
+                        applyScanParam(cfg, test.ChartDim->Param, CV);
+                    }
+
+                    // Resolve estimator
+                    std::shared_ptr<IEstimator> est;
+                    if (test.ChartDim &&
+                        test.ChartDim->Param == ScanParam::ALGORITHM) {
+                        const auto IDX =
+                            static_cast<std::size_t>(std::llround(CV));
+                        est = (IDX < N_ALGO) ? ALGOS[IDX].Estimator : nullptr;
+                    } else {
+                        est = test.FixedEstimator;
+                    }
+                    if (!est) {
+                        est = ALGOS[0].Estimator;
+                    }
+
+                    auto metrics = buildAllMetrics();
+                    ExperimentRunner runner(cfg, std::move(est),
+                                            std::move(metrics));
+                    RunResult result;
+                    bool ok = true;
+                    try {
+                        result = runner.run();
+                    } catch (...) {
+                        ok = false;
+                    }
+
+                    // Extract peaks, compute percentage error per peak,
+                    // sort ascending.
+                    if (ok) {
+                        const double TRUE_FREQ = cfg.Signal.FrequencyHz;
+                        for (const auto &p : result.LastPeaks) {
+                            const double ERR =
+                                std::abs(p.FrequencyHz - TRUE_FREQ) /
+                                TRUE_FREQ * 100.0;
+                            ranked_errors[xi].push_back(ERR);
+                        }
+                        std::ranges::sort(ranked_errors[xi]);
+                    }
+
+                    ++completed;
+                    if (on_progress) {
+                        float p = static_cast<float>(completed) /
+                                  static_cast<float>(total_points);
+                        std::string log_msg = test.Name + " [pt " +
+                                              std::to_string(xi + 1) + "/" +
+                                              std::to_string(N) + "]";
+                        on_progress(p, log_msg);
+                    }
+                }
+
+                // Build chart with one series per peak rank
+                ChartResult chart;
+                chart.Style = ChartStyle::MULTI_LINE;
+                chart.YLabel = "Percentage Error";
+                chart.XValues = test.XDim.Values;
+                chart.IsDiscrete = isScanParamDiscrete(test.XDim.Param);
+                if (chart.IsDiscrete) {
+                    chart.XLabel = "Category";
+                } else {
+                    chart.XLabel = "Delta [bins]";
+                }
+
+                std::string title = test.Name + " — Percentage Error";
+                if (test.ChartDim) {
+                    std::string chart_label;
+                    if (ci < test.ChartDim->Labels.size()) {
+                        chart_label = test.ChartDim->Labels[ci];
+                    } else {
+                        chart_label = std::to_string(CV);
+                    }
+                    title += " [" + chart_label + "]";
+                }
+                chart.Title = title;
+
+                // Find max rank across all X points
+                std::size_t max_rank = 0;
+                for (const auto &errs : ranked_errors) {
+                    max_rank = std::max(max_rank, errs.size());
+                }
+
+                for (std::size_t rank = 0; rank < max_rank; ++rank) {
+                    SeriesResult sr;
+                    sr.Name = "Peak " + std::to_string(rank + 1);
+                    sr.Means.reserve(N);
+                    for (std::size_t xi = 0; xi < N; ++xi) {
+                        if (rank < ranked_errors[xi].size()) {
+                            sr.Means.push_back(ranked_errors[xi][rank]);
+                        } else {
+                            sr.Means.push_back(
+                                std::numeric_limits<double>::quiet_NaN());
+                        }
+                    }
+                    chart.Series.push_back(std::move(sr));
+                }
+
+                output.Charts.push_back(std::move(chart));
+            }
+
+            outputs.push_back(std::move(output));
+            continue; // skip normal metric-charts pipeline
+        }
+
+        // ================================================================
+        // 正常 pipeline（MetricNames → ChartResult）
+        // ================================================================
         const std::vector<double> CHART_VALS =
             test.ChartDim ? test.ChartDim->Values : std::vector<double>{0.0};
         const std::vector<double> SERIES_VALS =

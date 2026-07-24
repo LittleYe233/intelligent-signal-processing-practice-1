@@ -12,6 +12,8 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 
 | Hash | Message |
 |---|---|
+| `89a11e9` | 🐛 fix(ui): resolve LogPanel ring buffer OOB read causing SIGSEGV |
+| `7c400f5` | ✨ feat(scan): implement batch scan test runner and results panel |
 | `f9f800d` | ♻️ refactor(signal): remove amplitude parameter, fix to 1.0 |
 | `ad94f78` | 🐛 fix(ui): auto-refit spectrum axes on new experiment data |
 | `a73421b` | fix(ui): fix double shutdown() error |
@@ -47,7 +49,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 | M1 | Core types + Signal/Window skeleton + MonteCarlo complete | ✅ Done (`7875d71`) |
 | M2 | FFT estimators + core/fft + rng + signal + window + metrics | ✅ Done (multiple commits) |
 | M3 | MUSIC/ESPRIT | ✅ Done — both implemented by user (beam-space MUSIC + Hankel ESPRIT via Eigen) |
-| M4 | (merged into M2) Metrics + Statistics; **Batch Scan Tests** | ✅ Metrics/Stats done; ✅ Scan tests implemented (ScanTestRunner + ScanResultsPanel, 7 tests / 23 charts). ⚠️ Known multi-test crash — see "Known Issues" below |
+| M4 | (merged into M2) Metrics + Statistics; **Batch Scan Tests** | ✅ Metrics/Stats done; ✅ Scan tests fully implemented and crash-free (7 tests / 23+ charts). LogPanel OOB fixed (`89a11e9`) |
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
 | M6 | End-to-end smoke test | ✅ Done — user verified all 4 algorithms |
 
@@ -61,13 +63,13 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
   1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18)
   2. `RmseMetric` → `MseMetric`: files renamed; `format()` no sqrt; max-Prominence peak selection (OQ-19+21)
   3. `RelativeEfficiencyMetric` added but **disabled** — model assumptions don't match CRB conditions; code retained but not wired (OQ-20)
-- **Batch scan test architecture** (implemented, doc v1.6 OQ-22~26) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (23 charts total). New `ScanResultsPanel` with resizable ImPlot windows. Default params + test specs fully specified by user. ⚠️ Multi-test silent crash exists — see "Known Issues" below.
+- **Batch scan test architecture** (implemented, doc v1.6→v1.7 OQ-22~28) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (23 charts total). New `ScanResultsPanel` with resizable ImPlot windows. Test 7 (Interference scan) uses special `PerPeak` mode: extracts all detected peaks per X-point, sorts by error distance, plots each rank as a separate series. LogPanel ring buffer OOB fixed (`89a11e9`).
 
 ### Working tree
 
-**Committed (this session)** — batch scan test architecture (code + docs):
+**Committed** (`7c400f5`) — batch scan test architecture (13 files, code + docs):
 - `src/experiment/scan_test_runner.cpp` + `include/ispp/experiment/scan_test_runner.h` — multi-dimension scan runner (7 tests, 3 chart styles)
-- `src/ui/panels/scan_results_panel.cpp` + `include/ispp/ui/panels/scan_results_panel.h` — ImPlot results panel (LineWithErrorBands / GroupedBarsWithError / MultiLine)
+- `src/ui/panels/scan_results_panel.cpp` + `include/ispp/ui/panels/scan_results_panel.h` — ImPlot results panel
 - `src/ui/ui_manager.cpp` + `include/ispp/ui/ui_manager.h` — background scan thread, progress polling, result handoff
 - `src/ui/panels/config_panel.cpp` + `include/ispp/ui/panels/config_panel.h` — "Run Scan Tests" button + scan state
 - `CMakeLists.txt` — scan sources registered
@@ -75,24 +77,38 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - `.opencode/context/development_solution.md` — v1.6 scan architecture docs
 - `.opencode/context/progress.md` — this file
 
-**Unstaged (uncommitted)** — not part of the scan commit:
-- `third_party/imgui` (submodule) — `imconfig.h` `ImDrawIdx unsigned int` enabled. This was an earlier (incorrect) crash hypothesis targeting the 16-bit vertex index limit. It did **not** fix the multi-test crash (root cause is gettext thread-safety — see Known Issues). May be reverted or kept as a beneficial hardening for 23-chart rendering.
+**Committed** (`89a11e9`) — LogPanel ring buffer OOB fix (2 files):
+- `src/ui/panels/log_panel.cpp` — ring buffer render uses `NextIdx % MAX_LOG`; messages copied into `RenderCopy` under lock before rendering
+- `include/ispp/ui/panels/log_panel.h` — added `RenderCopy` member vector
 
-### Known Issues
+**Uncommitted (unstaged)** — test 7 PerPeak mode:
+- `include/ispp/experiment/scan_test_runner.h` — added `bool PerPeak` field to `ScanTestDef`
+- `src/experiment/scan_test_runner.cpp` — test 7 uses PerPeak path (MC=1, per-peak error extraction, sorted by rank, MULTI_LINE); `<algorithm>` + `<limits>` includes
 
-**Multi-test silent crash (PENDING FIX)** — `ScanTestRunner` crashes silently when tests 4–7 run together (typically during Test 5 "SNR x SampleCount", around pt 9/21). Individual tests or small subsets run fine. No C++ exception is thrown; `try/catch` cannot catch it; the process simply exits.
+**Submodule (uncommitted)**:
+- `third_party/imgui` — `imconfig.h` `ImDrawIdx unsigned int` (32-bit indices for 23-chart rendering safety)
 
-**Root cause (confirmed via headless repro)**: GNU gettext `dgettext` is **not thread-safe**. The scan worker thread calls `metric->name()` (which calls `_UI()` → `dgettext`) during metric matching in `scan_test_runner.cpp`, while the main UI thread calls `_UI()` every frame across all panels. Concurrent `dgettext` corrupts internal state → silent process exit.
+### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
-**Verification**: A headless single-threaded repro (no UI, no ImGui) runs all 7 tests to completion successfully (`NATIVE_EXIT: 0`). The crash only manifests with the UI thread active.
+**Symptom**: Multi-test scan crashed silently (SIGSEGV, signal 11) when tests 4–7 ran together. Crash was always at the same point (~200 log entries accumulated). Individual tests or small subsets ran fine. No C++ exception; try/catch couldn't catch it.
 
-**Pending fix (NOT YET APPLIED)**:
-1. `IMetric::name()` should return a **stable English msgid** (no `_UI()` call) — acts as a locale-independent key + i18n lookup source.
-2. UI display side translates: `_UI(metric->name().data())`.
-3. `scan_test_runner.cpp` compares against the English msgid directly (no `_UI()` in the worker thread path).
-4. Ensures zero `dgettext` calls from the worker thread.
+**Diagnosis path** (followed in this order, each ruled out):
+1. **ImGui 16-bit vertex index limit** → Enabled 32-bit `ImDrawIdx` in `imconfig.h`. Still crashed. Ruled out.
+2. **gettext thread-safety** → Worker thread called `_UI()` via `metric->name()`. Applied fix (metric `name()` returns literal English). Still crashed. Ruled out as root cause (but kept as preventive fix).
+3. **Heap corruption from MUSIC/ESPRIT** → Built isolated repro (MUSIC 2100 + ESPRIT 2100 + FftInterpolate 100 iterations). All passed. Ruled out.
+4. **`-march=native` AVX alignment** → Rebuilt without `-march=native`. Still crashed. Ruled out.
+5. **Thread identification** → Added TID logging to crash handler. **TID=2850328247 = main thread**, not worker. The worker continued running after the crash.
+6. **Per-render-call isolation** → Added stderr guards around every ImGui/GL call. Last line before crash was always `[main] Log start` with no `[main] Log done`.
+7. **LogPanel ring buffer** → Disabling `Log.render()` eliminated the crash. Reducing `MAX_LOG` to 50 changed the crash to an ImGui assertion ("Forgot to call Render()"). The assertion revealed an exception escaped `Log.render()`, causing `ImGui::Render()` to be skipped.
 
-Affected files for the fix: `src/metrics/percentage_error.cpp`, `src/metrics/mse.cpp`, `src/metrics/compute_time.cpp`, `src/metrics/relative_efficiency.cpp`, `src/experiment/scan_test_runner.cpp`.
+**Root cause**: `LogPanel::render()` used `NextIdx` (which grows without bound) as the upper bound for iterating `Messages`. After the ring buffer wrapped (`NextIdx ≥ MAX_LOG`), the loop `for (i = 0; i < NextIdx; ++i)` read past `Messages.size()`, causing an out-of-bounds access → SIGSEGV on the main thread during rendering.
+
+The crash appeared correlated with the worker thread's computation because it always happened after ~200 log entries (filling the buffer), which coincided with reaching test 5 in the scan sequence.
+
+**Fix** (`89a11e9`):
+1. Ring buffer iteration uses `NextIdx % MAX_LOG` when `Wrapped` is true — two-segment render (tail from `WRAP` to `MAX_LOG`, then head from `0` to `WRAP`).
+2. Messages copied into a `RenderCopy` vector under the lock; ImGui renders from the copy. `RenderCopy` is cleared at the start of the next `render()` call (after `ImGui::Render()` has consumed the previous frame's pointers).
+3. Added `RenderCopy` member to `LogPanel`.
 
 ### What's Implemented (code on disk, ALL COMPLETE)
 
@@ -463,15 +479,25 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 
 **Lesson**: When a class has both an explicit lifecycle method (`run()`) and a destructor that calls the same cleanup (`shutdown()`), calling cleanup from both paths causes double-free. Pick one cleanup invocation point — preferably the destructor (RAII) — and make the lifecycle method NOT call cleanup. If idempotent shutdown is needed (e.g., `run()` might be called multiple times), add a guard flag; but the simplest fix is to trust RAII.
 
-### 20. GNU gettext `dgettext` is NOT thread-safe — silent crash from worker-thread UI calls (NEW this session)
+### 20. LogPanel ring buffer OOB read — unbounded index used as loop bound (CRITICAL, `89a11e9`)
 
-**Mistake**: `IMetric::name()` implementations wrapped their return string in `_UI()` (→ `dgettext("ui", ...)`). The scan test **worker thread** calls `metric->name()` during metric matching in `scan_test_runner.cpp` (`mr.MetricObj->name() == _UI(metric_name.c_str())`). Simultaneously, the **main UI thread** calls `_UI()` every frame across all panels. GNU gettext's `dgettext` is not thread-safe — concurrent calls corrupt internal state, producing a **silent process exit** (no exception, no segfault text, not catchable by `try/catch`).
+**Mistake**: `LogPanel` uses a ring buffer where `NextIdx` increments without bound (it is the total write count, never reset). The `render()` method iterated `for (i = 0; i < NextIdx; ++i)` to display messages. Once the buffer wrapped (`NextIdx ≥ MAX_LOG = 200`), this loop read past `Messages.size()`, accessing unallocated memory → SIGSEGV on the main thread.
 
-**Symptom**: Running tests 4–7 together crashed around Test 5 pt 9/21. Single tests or small subsets ran fine (the race window was too short). A headless single-threaded repro ran all 7 tests successfully — proving the computation path was correct and the crash was purely a threading/gettext issue.
+**Why it was hard to diagnose**: The crash manifested as a silent SIGSEGV (signal 11) that could not be caught by try/catch. It appeared correlated with the worker thread's computation (always at the same scan test point), leading to multiple wrong hypotheses (ImGui vertex limit, gettext thread-safety, heap corruption from Eigen, AVX alignment). The actual cause was a simple off-by-N read in the UI rendering path that only triggered after exactly `MAX_LOG` log entries accumulated.
 
-**Resolution (pending)**: `name()` must return a **stable English msgid** (literal, no `_UI()`). The UI display layer translates on the main thread: `_UI(metric->name().data())`. The worker thread compares against the English msgid directly — zero `dgettext` calls off the main thread.
+**Diagnosis breakthrough**: Adding thread-ID to the crash handler proved the crash was on the **main thread** (not the worker). Adding per-render-call stderr guards proved the crash was inside `LogPanel::render()`. Disabling `LogPanel::render()` eliminated the crash entirely.
 
-**Lesson**: Any function that may be called from a background thread must NEVER call `dgettext`/`gettext`/`_UI()`. i18n translation is a **display-only** concern — do it on the UI thread at render time, not in data/business-logic code. Stable English msgids serve double duty as locale-independent comparison keys and as i18n lookup sources.
+**Resolution**: Use `NextIdx % MAX_LOG` when `Wrapped` is true, rendering in two segments (oldest-to-newest chronological order). Additionally, copy messages into a `RenderCopy` vector under the lock before passing `c_str()` pointers to ImGui, preventing the worker thread from invalidating them before `ImGui::Render()`.
+
+**Lesson**: Ring buffer cursors that grow without bound must **never** be used directly as array iteration bounds. Always apply `% capacity` when indexing into the backing array. When a crash appears correlated with background computation, verify which thread actually crashes before attributing it to the computation — a SIGSEGV in the rendering loop can look like a computation crash if the timing is consistent.
+
+### 21. Worker-thread gettext calls — thread-safety hazard (preventive, not root cause)
+
+**Mistake**: `IMetric::name()` implementations wrapped their return string in `_UI()` (→ `dgettext("ui", ...)`). The scan test worker thread called `metric->name()` during metric matching. GNU gettext's `dgettext` is not guaranteed thread-safe. Although this turned out **not** to be the root cause of the crash (the real cause was Lesson 20), it is still a correctness hazard.
+
+**Resolution**: `name()` returns a stable English msgid literal (no `_UI()`). The UI display layer translates on the main thread via `_UI(metric->name().data())`. The worker thread compares against English msgids directly — zero `dgettext` calls off the main thread. (This fix was applied during debugging and kept as a preventive measure.)
+
+**Lesson**: Any function callable from a background thread must NEVER call `dgettext`/`gettext`/`_UI()`. i18n is a display-only concern — do it on the UI thread at render time. Stable English msgids serve as locale-independent comparison keys.
 
 ## Build & Validation Commands
 
@@ -499,6 +525,6 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v1.6**, ~1443 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25).
+- `.opencode/context/development_solution.md` — authoritative plan (**v1.7**, ~1560 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25); v1.7 LogPanel ring buffer fix (OQ-27) + Test 7 PerPeak mode (OQ-28).
 - `.opencode/context/progress.md` — this file
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)

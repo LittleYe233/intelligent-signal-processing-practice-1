@@ -93,6 +93,11 @@ struct ScanTestDef {
 
     // 若为 true，将各 ChartDim 值的均值合并为一张 MULTI_LINE 总览图
     bool GenerateOverview = false;
+
+    // 若为 true，逐峰提取百分比误差（而非聚合到单一 metric）。
+    // 每个 X 点运行 MC=1（确定性），将 LastPeaks 按距真频误差排序，
+    // 每个排位画一条折线（MULTI_LINE）。
+    bool PerPeak = false;
 };
 
 // ---------------------------------------------------------------------------
