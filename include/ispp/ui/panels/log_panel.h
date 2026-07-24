@@ -19,6 +19,7 @@ public:
 
 private:
     std::vector<std::string> Messages;
+    std::vector<std::string> RenderCopy; // thread-safe copy for rendering
     std::size_t NextIdx = 0;
     bool Wrapped = false;
     std::mutex Mutex;

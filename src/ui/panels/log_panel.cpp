@@ -34,14 +34,27 @@ void LogPanel::render() {
                       ImGuiWindowFlags_HorizontalScrollbar);
 
     {
+        // Copy under lock: NextIdx grows unbounded so both render
+        // loops must wrap via NextIdx % MAX_LOG when the ring buffer
+        // overflows, otherwise the unwrapped loop reads past
+        // Messages' end (OOB → SIGSEGV).
+        RenderCopy.clear();
+        RenderCopy.reserve(MAX_LOG);
         std::scoped_lock lock(Mutex);
         if (Wrapped) {
-            for (std::size_t i = NextIdx; i < MAX_LOG; ++i)
-                ImGui::TextUnformatted(Messages[i].c_str());
+            const std::size_t WRAP = NextIdx % MAX_LOG;
+            for (std::size_t i = WRAP; i < MAX_LOG; ++i)
+                RenderCopy.push_back(Messages[i]);
+            for (std::size_t i = 0; i < WRAP; ++i)
+                RenderCopy.push_back(Messages[i]);
+        } else {
+            for (std::size_t i = 0; i < NextIdx; ++i)
+                RenderCopy.push_back(Messages[i]);
         }
-        for (std::size_t i = 0; i < NextIdx; ++i)
-            ImGui::TextUnformatted(Messages[i].c_str());
     }
+
+    for (const auto &msg : RenderCopy)
+        ImGui::TextUnformatted(msg.c_str());
 
     if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
         ImGui::SetScrollHereY(1.0f);
