@@ -126,6 +126,15 @@ void ConfigPanel::render(ExperimentConfig &config, RunState &state,
         state.Pending = true;
     }
 
+    // ---- Scan Tests button ----
+    ImGui::Separator();
+    if (state.ScanRunning) {
+        ImGui::ProgressBar(state.ScanProgress, ImVec2(-1, 0),
+                           _UI("Scanning..."));
+    } else if (ImGui::Button(_UI("Run Scan Tests"), ImVec2(-1, 36))) {
+        state.ScanPending = true;
+    }
+
     ImGui::End();
 }
 

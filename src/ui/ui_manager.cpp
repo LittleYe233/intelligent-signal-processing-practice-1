@@ -45,6 +45,10 @@ UiManager::~UiManager() {
         Running.store(false);
     if (Worker.joinable())
         Worker.join();
+    if (ScanRunning.load())
+        ScanRunning.store(false);
+    if (ScanWorker.joinable())
+        ScanWorker.join();
     shutdown();
 }
 
@@ -102,7 +106,7 @@ void UiManager::initImGui() {
     float xscale, yscale;
     glfwGetWindowContentScale(Window, &xscale, &yscale);
     std::cout << std::format("win_scale=({}, {})\n", xscale, yscale);
-    ImGui::StyleColorsDark();
+    ImGui::StyleColorsLight();
     ImGui::GetStyle().ScaleAllSizes(xscale);
 
     // Chinese font (Microsoft YaHei)
@@ -177,6 +181,51 @@ void UiManager::pollExperiment() {
 }
 
 // ---------------------------------------------------------------------------
+// Start scan tests in background thread
+// ---------------------------------------------------------------------------
+void UiManager::startScanTests() {
+    if (ScanRunning.load())
+        return;
+
+    ScanRunning.store(true);
+    ScanProgress.store(0.0f);
+    Log.log("Starting scan tests...");
+
+    ScanWorker = std::thread([this]() {
+        try {
+            ScanTestRunner runner;
+            auto results = runner.run([this](float p, const std::string &msg) {
+                ScanProgress.store(p);
+                Log.log(msg);
+            });
+
+            {
+                std::scoped_lock lock(ScanResultMutex);
+                PendingScanResults = std::move(results);
+            }
+        } catch (const std::exception &e) {
+            Log.log(std::string("ERROR in scan tests: ") + e.what());
+        } catch (...) {
+            Log.log("ERROR: Unknown exception in scan tests.");
+        }
+        ScanRunning.store(false);
+    });
+    ScanWorker.detach();
+}
+
+// ---------------------------------------------------------------------------
+// Poll scan test completion
+// ---------------------------------------------------------------------------
+void UiManager::pollScanTests() {
+    std::scoped_lock lock(ScanResultMutex);
+    if (PendingScanResults) {
+        ScanResults = std::move(*PendingScanResults);
+        PendingScanResults.reset();
+        Log.log("Scan tests completed.");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Menu bar
 // ---------------------------------------------------------------------------
 void UiManager::renderMainMenuBar() {
@@ -214,6 +263,8 @@ void UiManager::run() {
             RunState state;
             state.Running = Running.load();
             state.Progress = Progress.load();
+            state.ScanRunning = ScanRunning.load();
+            state.ScanProgress = ScanProgress.load();
 
             ConfigPanel.render(Config, state, pending_est, pending_mets);
 
@@ -221,12 +272,22 @@ void UiManager::run() {
                 startExperiment(std::move(pending_est),
                                 std::move(pending_mets));
 
+            if (state.ScanPending && !state.ScanRunning)
+                startScanTests();
+
             SpectrumPanel.render(LastResult);
             ResultsPanel.render(LastResult);
+
+            // Scan results panel (if results exist)
+            if (ScanResults) {
+                ScanResultsPanel.render(*ScanResults);
+            }
+
             Log.render();
 
-            // Check for completed experiment
+            // Check for completed experiments / scans
             pollExperiment();
+            pollScanTests();
 
             // ---- Render ----
             ImGui::Render();

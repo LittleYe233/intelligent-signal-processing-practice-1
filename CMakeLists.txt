@@ -151,10 +151,12 @@ set(ISPP_SOURCES
     # Experiment (M1)
     src/experiment/statistics.cpp
     src/experiment/experiment_runner.cpp
+    src/experiment/scan_test_runner.cpp
     src/ui/ui_manager.cpp
     src/ui/panels/config_panel.cpp
     src/ui/panels/spectrum_panel.cpp
     src/ui/panels/results_panel.cpp
+    src/ui/panels/scan_results_panel.cpp
     src/ui/panels/log_panel.cpp
 )
 

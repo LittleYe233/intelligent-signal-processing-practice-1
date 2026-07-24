@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.5 |
+| 文档版本 | v1.6 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-23（RelativeEfficiency 指标暂时禁用——模型假设与 CRB 正则化条件不完全匹配。代码保留但不在 Runner / UI 中调用。见 §6.4 / §8.3 / OQ-20） |
+| 最近修订 | 2026-07-23（批量扫描测试架构具体化：7 项测试规格、3 种图表样式、多维扫描维度角色。见 §7.5~§7.7 / §8.8 / OQ-24~26） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -100,6 +100,7 @@ intelligent-signal-processing-practice-1/
 │       └── experiment/
 │           ├── experiment_config.h ← 单一配置 + MonteCarloConfig
 │           ├── experiment_runner.h ← 蒙特卡洛循环（完整实现）
+│           ├── scan_test_runner.h  ← 批量扫描测试（M4）
 │           └── statistics.h        ← mean/std/min/max（完整实现）
 ├── src/
 │   ├── app/
@@ -123,6 +124,7 @@ intelligent-signal-processing-practice-1/
 │   │   └── relative_efficiency.cpp  ← 新增
 │   ├── experiment/
 │   │   ├── experiment_runner.cpp   ← 完整实现
+│   │   ├── scan_test_runner.cpp    ← 批量扫描测试（M4）
 │   │   └── statistics.cpp          ← 完整实现
 │   └── ui/
 │       ├── ui_manager.h/.cpp       ← GLFW/ImGui/ImPlot 初始化 + 主循环 + DPI
@@ -130,6 +132,7 @@ intelligent-signal-processing-practice-1/
 │       │   ├── config_panel.h/.cpp
 │       │   ├── spectrum_panel.h/.cpp
 │       │   ├── results_panel.h/.cpp
+│       │   ├── scan_results_panel.h/.cpp  ← 扫描测试图表（M4）
 │       │   └── log_panel.h/.cpp
 │       └── widgets/
 │           └── enum_combo.h/.cpp   ← 强类型 enum ↔ ImGui::Combo 桥接
@@ -940,6 +943,268 @@ private:
 
 ---
 
+## 7.5 批量扫描测试 — 数据结构（M4，**完整实现**）
+
+> 批量扫描测试在控制其余自变量不变的前提下，改变一个或多个参数，
+> 对每组参数组合执行完整的蒙特卡洛实验，收集指定 metric 的统计结果，
+> 最终绘制图表。测试规格（默认参数、扫描范围、metric 选择、图表样式）
+> **硬编码**在 `ScanTestRunner::buildDefaultTests()` 中，不在 UI 中暴露。
+>
+> 支持三种维度角色（OQ-26）：
+> - **X 轴变量**（必选）：图表横轴，逐点扫描
+> - **系列变量**（可选）：同一图表内的多条数据线/柱组，用颜色或线型区分
+> - **分图变量**（可选）：每个取值生成一张独立图表
+
+### 7.5.1 全局默认参数
+
+```text
+SampleRateHz     = 1000.0
+SampleCount      = 256
+FrequencyHz      = 200.0
+PhaseRad         = 0.0
+NoiseDistribution = GAUSSIAN
+SnrDb            = 10.0
+WindowKind       = RECTANGULAR
+DeltaBins        = 0.0  (无干扰)
+Amplitude        = 0.5
+MaxFreqCount     = 1
+IterationCount   = 100
+BaseSeed         = 7792565
+```
+
+### 7.5.2 可扫描参数 + 算法注册表
+
+```cpp
+// include/ispp/experiment/scan_test_runner.h
+
+enum class ScanParam : std::uint8_t {
+    // 连续型
+    SnrDb, FrequencyHz, PhaseRad, InterferenceDeltaBins, InterferenceAmplitude,
+    // 离散型（数值）
+    SampleCount, MaxFreqCount,
+    // 离散型（类别）
+    WindowKind, NoiseDistribution,
+    // 特殊：不在 ExperimentConfig 中，需单独解析为 IEstimator
+    Algorithm,
+};
+
+bool isScanParamDiscrete(ScanParam param);
+void applyScanParam(ExperimentConfig &config, ScanParam param, double value);
+
+/// 算法注册表——四种估计器的名称 + 构造器。
+/// 扫描维度涉及 Algorithm 时，按索引取值。
+struct AlgorithmEntry {
+    std::string Name;
+    std::shared_ptr<IEstimator> Estimator;
+};
+static const std::vector<AlgorithmEntry> ALL_ALGORITHMS = {
+    {"FFT Peak",       std::make_shared<FftPeakEstimator>(0.0)},
+    {"FFT Interpolate", std::make_shared<FftInterpolateEstimator>(0.0)},
+    {"MUSIC",          std::make_shared<MusicEstimator>(0.0)},
+    {"ESPRIT",         std::make_shared<EspritEstimator>()},
+};
+```
+
+### 7.5.3 图表样式枚举
+
+```cpp
+enum class ChartStyle {
+    /// 折线 + 误差带：粗线=均值，深色带=±std，浅色带=min/max。
+    /// 用于单系列、连续或离散 X 轴，且 metric 有完整分布统计时。
+    LineWithErrorBands,
+
+    /// 分组柱状图 + 误差须：X 轴类别分组，组内多色柱代表系列变量。
+    /// 柱高=均值，须线=min~max。用于多系列离散参数。
+    GroupedBarsWithError,
+
+    /// 多折线（均值）：X 轴连续，不同系列用不同线型（实线/虚线/点线/点划线）。
+    /// 不显示误差带。用于仅需均值对比的多系列场景。
+    MultiLine,
+};
+```
+
+### 7.5.4 测试规格与结果数据结构
+
+```cpp
+/// 一条扫描维度的取值序列。
+struct ScanDimension {
+    ScanParam Param;
+    std::vector<double> Values;
+    std::vector<std::string> Labels; // 离散参数的类别标签（平行于 Values）
+};
+
+/// 完整测试定义。
+struct ScanTestDef {
+    std::string Name;
+
+    ScanDimension XDim;                    // 必选：X 轴变量
+    std::optional<ScanDimension> SeriesDim; // 可选：同图系列变量
+    std::optional<ScanDimension> ChartDim;  // 可选：分图变量
+
+    std::vector<std::string> MetricNames;  // 每个 metric → 一组分图
+    ChartStyle Style;
+
+    /// 配置覆盖（区别于全局默认的常量值）。
+    std::vector<std::pair<ScanParam, double>> Overrides;
+
+    /// 固定估计器（当 Algorithm 不是 ChartDim/SeriesDim 时使用）。
+    std::shared_ptr<IEstimator> FixedEstimator;
+};
+
+/// 单个系列的统计数据（平行于 XDim.Values）。
+struct SeriesResult {
+    std::string Name;               // 图例标签
+    std::vector<double> Means;
+    std::vector<double> Stds;       // 空 = metric 无分布统计
+    std::vector<double> Mins;
+    std::vector<double> Maxs;
+};
+
+/// 单张图表的完整数据。
+struct ChartResult {
+    std::string Title;
+    std::string XLabel, YLabel;
+    ChartStyle Style;
+    std::vector<double> XValues;
+    std::vector<std::string> XLabels; // 离散时使用
+    bool IsDiscrete;
+    std::vector<SeriesResult> Series;
+};
+
+/// 单次测试的输出（包含若干张图表）。
+struct ScanTestOutput {
+    std::string Name;
+    std::vector<ChartResult> Charts;
+};
+```
+
+> **Metric 提取**：每次实验后遍历 `RunResult::Metrics`，
+> 按 `MetricName` 与 `IMetric::name()` 匹配，取 `Stats` 全部四个字段。
+> `showDistribution() == false` 的 metric 仅 `Mean` 有效。
+
+---
+
+## 7.6 `ScanTestRunner`（**完整实现**）
+
+### 7.6.1 接口
+
+```cpp
+class ScanTestRunner {
+public:
+    using ProgressCallback =
+        std::function<void(float, const std::string &)>;
+
+    ScanTestRunner(); // 自动调用 buildDefaultTests()
+
+    std::vector<ScanTestOutput>
+    run(const ProgressCallback &onProgress = nullptr);
+
+    void cancel();
+    bool isCancelled() const;
+
+private:
+    std::vector<ScanTestDef> Tests;
+    std::atomic<bool> Cancelled{false};
+    static std::vector<ScanTestDef> buildDefaultTests();
+};
+```
+
+### 7.6.2 多维枚举流水线
+
+```text
+run():
+ 1. totalPoints = Σ (xValues × seriesValues × chartValues × metrics)
+                   for all tests
+    completed = 0; outputs = []
+ 2. for each test in Tests:
+    a. log("Starting: " + test.Name)
+    b. chartVals = test.ChartDim ? ChartDim.Values : [single]
+       seriesVals = test.SeriesDim ? SeriesDim.Values : [single]
+    c. for each cv in chartVals:         // 分图维度
+       for each metricName in test.MetricNames:  // 每个 metric 一组分图
+          chart = {title(test.Name, cv, metricName), ...}
+          for each sv in seriesVals:     // 系列维度
+             series = {label(sv), [], [], [], []}
+             for each xv in test.XDim.Values:  // X 轴维度
+                i.  若 isCancelled() → break all
+                ii. config = globalDefaults
+                    applyOverrides(config, test.Overrides)
+                    applyScanParam(config, XDim.Param, xv)
+                    if SeriesDim: applyScanParam(config, SeriesDim.Param, sv)
+                    if ChartDim: applyScanParam(config, ChartDim.Param, cv)
+                iii.estimator = resolveEstimator(test, cv, sv)
+                    metrics = buildMetrics()  // 注册全部 metric
+                    runner = ExperimentRunner(config, estimator, metrics)
+                    result = runner.run()
+                iv.  找到 metricName 对应的 MetricResult:
+                    series.Means.push_back(stats.Mean)
+                    series.Stds.push_back(stats.Std)   // 若 showDistribution()
+                    series.Mins.push_back(stats.Min)
+                    series.Maxs.push_back(stats.Max)
+                v.   completed++; onProgress(completed/total, logMsg)
+             chart.Series.push_back(series)
+          output.Charts.push_back(chart)
+    d. outputs.push_back(output)
+       log("Completed: " + test.Name)
+ 3. return outputs
+```
+
+**`resolveEstimator(test, cv, sv)`**：若 `ChartDim.Param == Algorithm` 则
+按 `cv` 索引 `ALL_ALGORITHMS`；若 `SeriesDim.Param == Algorithm` 则按 `sv`；
+否则返回 `test.FixedEstimator`。
+
+---
+
+## 7.7 具体测试定义（硬编码于 `buildDefaultTests()`）
+
+> 全局默认参数见 §7.5.1。下表中"覆盖"列仅列出与默认值不同的常量。
+> 未列出的参数均继承默认值。
+
+| # | 名称 | X 轴 | 系列变量 | 分图变量 | 覆盖 | Metric | 样式 | 图表数 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | SampleCount scan | SampleCount: 32, 64, 128, 256, 512, 1024 | — | Algorithm(4) | — | PE, CT | LineWithErrorBands | 8 |
+| 2 | Frequency scan | Freq: 1500~1530 step 3 (11pts) | — | Algorithm(4) | SR=7680 | PE | LineWithErrorBands | 4 |
+| 3 | NoiseDist × Algorithm | NoiseDist(4) | Algorithm(4) | — | SNR=−8 | PE | GroupedBarsWithError | 1 |
+| 4 | SNR scan | SNR: −30~20 step 2.5 (21pts) | — | Algorithm(4) | — | PE | LineWithErrorBands | 4 |
+| 5 | SNR × SampleCount | SNR: −30~20 step 2.5 (21pts) | SampleCount: 64,128,256,512 | — | Est=Interpolate | PE | MultiLine | 1 |
+| 6 | Window × Algorithm | Algorithm: FFT Peak, ESPRIT (2) | WindowKind(4) | — | SNR=−3 | PE | GroupedBarsWithError | 1 |
+| 7 | Interference scan | DeltaBins: 0~4 step 0.2 (21pts) | — | Algorithm(4) | — | PE | LineWithErrorBands | 4 |
+
+**总计 23 张图表。**
+
+**缩写**：PE = PercentageError, CT = ComputeTime, SR = SampleRateHz, Est = Estimator
+
+### 各测试详细规格
+
+**Test 1 — SampleCount scan**
+- 默认配置 + 无覆盖；逐个算法 × 逐个 metric 生成独立图表
+- 每图 6 个 X 轴点（32/64/128/256/512/1024），折线 + 误差带
+
+**Test 2 — Frequency scan**
+- 覆盖 `SampleRateHz = 7680`（确保 Nyquist 覆盖 1530 Hz）
+- X 轴 11 点（1500/1503/.../1530 Hz），仅 PE
+
+**Test 3 — NoiseDist × Algorithm**
+- 覆盖 `SNR = −8 dB`；X 轴 = 4 种噪声分布；系列 = 4 种算法（同图 4 色）
+- 柱状分组：每组 4 根柱（算法），柱高 = PE 均值，误差须 = min~max
+
+**Test 4 — SNR scan**
+- 默认配置；X 轴 21 点（−30~−27.5~...~20 dB）；仅 PE
+
+**Test 5 — SNR × SampleCount**
+- 覆盖 `Estimator = FFT Interpolate`；X 轴 = SNR(21 点)，系列 = 4 种采样数
+- 仅均值，4 条折线（不同线型），无误差带
+
+**Test 6 — Window × Algorithm**
+- 覆盖 `SNR = −3 dB`；X 轴 = 2 种算法（FFT Peak / ESPRIT），系列 = 4 种窗
+- 柱状分组：每组 4 根柱（窗类型），柱高 = PE 均值，误差须 = min~max
+
+**Test 7 — Interference scan**
+- 默认配置；X 轴 21 点（0~0.2~...~4.0 bins）；仅 PE
+- 注：DeltaBins=0 时无干扰，大于 0 时有干扰（需 `MaxFreqCount+1` 的频率分量数）
+
+---
+
 ## 8. UI 实现（完整实现）
 
 ### 8.1 启动与 DPI
@@ -971,6 +1236,7 @@ src/ui/
 │   ├── config_panel.h/.cpp ← 实验配置控件
 │   ├── spectrum_panel.h/.cpp ← ImPlot 频谱目测
 │   ├── results_panel.h/.cpp ← 指标表格 + 统计
+│   ├── scan_results_panel.h/.cpp ← 扫描测试 ImPlot 图表（M4）
 │   └── log_panel.h/.cpp    ← 替代控制台
 └── widgets/
     └── enum_combo.h/.cpp   ← 强类型 enum ↔ ImGui::Combo 桥接
@@ -994,6 +1260,10 @@ src/ui/
 - 算法选择（4 选 1，单选）
 - 评价指标：**全部始终启用**（不再提供勾选；移除 MetricsMask / Metrics 多选区域；`ExperimentRunner` 始终注册三个指标：PercentageError、MSE、ComputeTime。RelativeEfficiencyMetric 暂未注册——见 OQ-20）
 - **"运行" 按钮**：触发后台 `ExperimentRunner::run()`
+- **"运行扫描测试" 按钮**：一键启动所有硬编码的扫描测试（M4, OQ-22）；
+  内部调用 `ScanTestRunner::run()`，在后台线程顺序执行。
+  运行时复用进度条（显示全局扫描进度），并在日志面板输出每个测试的
+  开始 / 结束消息。
 
 ### 8.4 频谱面板（ImPlot）
 
@@ -1043,15 +1313,22 @@ while (!glfwWindowShouldClose(window)):
 
     可选：ImGui::DockSpace（启用 docking 时）
 
-    configPanel.render(sharedConfig, runRequest)
+    configPanel.render(sharedConfig, runRequest, scanRequest)
     spectrumPanel.render(lastRunResult)
     resultsPanel.render(lastRunResult)
+    scanResultsPanel.render(scanResults)
     logPanel.render()
 
     若 runRequest 为真 且 后台无任务:
         启动 std::thread 执行 ExperimentRunner::run(progressCb)
         UI 端用 progressCb 更新进度条
     若后台完成 → 拷贝 RunResult 到 lastRunResult
+
+    若 scanRequest 为真 且 后台无任务:
+        启动 std::thread 执行 ScanTestRunner::run(progressCb)
+        进度条显示全局扫描进度（completedPoints / totalPoints）
+        日志输出每个测试的开始/结束消息
+    若后台扫描完成 → 拷贝 vector<ScanTestResult> 到 scanResults
 
     ImGui::Render()
     glfwGetFramebufferSize(window, &w, &h)
@@ -1069,6 +1346,59 @@ while (!glfwWindowShouldClose(window)):
 > **异常防护**：后台线程中的 `ExperimentRunner::run()` 的整体调用包裹在 `try-catch` 中；
 > 捕获 `std::exception` 与未知异常，通过 `LogPanel::log()` 记录到 UI 日志面板，
 > 确保后台异常不会导致整个程序闪退。UI 主循环中的异常同理处理。
+
+### 8.8 扫描测试结果面板（ImPlot）— M4
+
+**布局**：与频谱面板（§8.4）一致——每张图表各自包裹在
+`ImGui::BeginChild(..., ImGuiChildFlags_ResizeY)` 容器中，从上到下
+依次排列，用户可垂直拖拽调整各图高度。
+
+**空状态**：无扫描结果时显示灰色提示文本 `"No scan results — run scan tests first."`。
+
+**三种图表样式渲染逻辑**（OQ-24）：
+
+#### Style A: LineWithErrorBands（折线 + 误差带）
+
+用于单系列、X 轴连续或离散，metric 有完整分布统计（Tests 1/2/4/7）。
+每个分图变量值 + metric 组合 → 一张独立图表。
+
+```text
+// 三层叠加，从后往前画（浅色在后）
+PlotShaded("min~max", xs, mins, maxs, n)       // 最浅色填充
+PlotShaded("±std",    xs, meanMinusStd,
+                        meanPlusStd, n)         // 中等色填充
+PlotLine("mean",      xs, means, n, thickness=2) // 粗线
+```
+
+#### Style B: GroupedBarsWithError（分组柱状 + 误差须）
+
+用于多系列离散参数（Tests 3/6）。X 轴分组，组内 N 根柱（N = 系列数）。
+
+```text
+// 每组宽度 = 1.0，柱宽 = 1.0 / (N+1)
+for each series idx:
+    barXs = groupCenter + (idx - (N-1)/2) * barWidth  // 柱中心偏移
+    PlotBars(seriesName, barXs, means, n, barWidth)
+    // 误差须：每根柱中心绘制 min~max 的竖线 + 短横帽
+    for each point:
+        PlotErrorBars("", barX, mean, min, max)
+// X 轴刻度标签 = 组类别标签（如 "Gaussian", "Uniform", ...）
+SetupAxisTicks(X1, groupCenters, groupLabels)
+```
+
+#### Style C: MultiLine（多折线，均值）
+
+用于多系列连续 X 轴，仅对比均值（Test 5）。不同系列用不同 ImPlot 线型。
+
+```text
+for each series idx:
+    ImPlot::SetNextLineStyle(color, thickness, styleIdx) // 实线/虚线/点线/点划线
+    PlotLine(seriesName, xs, means, n)
+// 图例自动显示系列名称（如 "N=64", "N=128", ...）
+```
+
+> **Y 轴自动适配**：所有样式均使用 `ImPlotCond_Once`（首次适配后保留
+> 用户缩放），与频谱面板（§8.4 OQ-15）相同的策略。
 
 ---
 
@@ -1114,7 +1444,7 @@ endif()
 | M1 | Core 类型 + Signal/Window 骨架 + 蒙特卡洛完整 | 骨架 + MonteCarlo 实现 |
 | M2 | FFT 估计器 + core/fft + rng + signal + window + metrics | 全部完整 |
 | M3 | MUSIC/ESPRIT | MUSIC + ESPRIT 均由用户实现（beam-space MUSIC + Hankel ESPRIT，via Eigen） |
-| M4 | （已合并至 M2） | — |
+| M4 | （已合并至 M2）Metrics + Statistics；**批量扫描测试（扫描架构 + ImPlot 图表）** | Metrics/Statistics 已完成；扫描测试架构已设计（§7.5~§7.6, §8.8），待实现 |
 | M5 | UI 完整 + main.cpp | **完整实现** |
 | M6 | 端到端冒烟（用户实现任一算法后即可跑） | ✅ **已完成** — 用户已验证全部 4 个算法可运行 |
 
@@ -1146,7 +1476,8 @@ endif()
 | `metrics/*.{h,cpp}` | 全部（PercentageError / MSE / ComputeTime / RelativeEfficiency，含各自 `format()` / `showDistribution()` / `isAggregate()` / `finalize()` 实现） |
 | `experiment/statistics.{h,cpp}` | 全部 |
 | `experiment/experiment_runner.{h,cpp}` | 全部（按 §7.4 规约） |
-| `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件） |
+| `experiment/scan_test_runner.{h,cpp}` | 全部（按 §7.5~§7.6 规约：ScanParam / ScanTestSpec / ScanTestRunner 流水线） |
+| `src/ui/**` | 全部（含 DPI、字体、主循环、所有面板与控件，含扫描测试结果面板 §8.8） |
 | `src/app/main.cpp` | 全部（GUI 启动） |
 | `CMakeLists.txt` 改动 | 全部（option、源文件注册） |
 
@@ -1202,6 +1533,11 @@ endif()
 | OQ-19 | MSE 替代 RMSE | 撤销 OQ-12 的 RMSE 决策。`RmseMetric` 重命名为 `MseMetric`（文件 `rmse.{h,cpp}` → `mse.{h,cpp}`）；`evaluate()` 仍返回 `(Δf)²`；`format()` **不再开根号**——MC 均值 `= MSE = 1/M·Σ(Δf)²` 直接显示；`name()` 返回 `"MSE"` |
 | OQ-20 | 相对效率聚合指标 | 新增 `RelativeEfficiencyMetric`（`isAggregate() = true`）：`η = CRB / SampleVariance`。CRB 对高斯分布 = `6fs²σ²/(π²N(N²-1))`、拉普拉斯分布 = `3fs²σ²/(π²N(N²-1))`（σ = 噪声标准差，由 SNR + 信号幅度 1.0 推导）；均匀/脉冲分布不满足正则条件 → NaN → 面板显示 "N/A"。SampleVariance = `1/(M-1)·Σ(f_i-f_avg)²`。`IMetric` 扩展 `isAggregate()` / `finalize()`；Runner 收集原始 `freqEstimates` 供聚合计算。**⚠️ 当前已禁用**——当前仿真模型假设（固定单频 + 可选干扰）与 CRB 正则化条件不完全匹配，实际使用中 η 无可靠意义。代码保留（仍参与编译以防 API 漂移）但未注册到 Runner / UI。重新启用需恢复 `experiment_runner.cpp` 聚合逻辑 + `config_panel.cpp` 注册 |
 | OQ-21 | MSE / RelativeEfficiency 选峰策略 | 撤销 OQ-6 中"选取误差最小峰"的决策（仅对 MSE 和 RelativeEfficiency 生效）。改为选取 **Prominence 最大的峰**——因为实际频率估计中无法预知真实频率，只能依赖峰值本身的显著度来判定主峰。PercentageError 保留 OQ-6 的 min-error 策略（衡量估计器能达到的最优精度）。FFT Peak 经由 PeakFinder 提供有意义的 Prominence；FFT Interpolate 返回单峰时无歧义 |
+| OQ-22 | 扫描测试规格来源 | **硬编码**在 `ScanTestRunner::buildDefaultSpecs()` 中（默认参数、扫描范围、metric 选择），不在 UI 中暴露。用户给出具体数值后填充。每个 `ScanTestSpec` 携带独立的 `DefaultConfig` / `Estimator` / `Metrics` |
+| OQ-23 | 扫描测试 vs 主实验的关系 | `ScanTestRunner` 内部为每个扫描点创建独立 `ExperimentRunner` 实例（共享 `shared_ptr<IEstimator>` / `shared_ptr<IMetric>`），复用现有蒙特卡洛逻辑。扫描测试与主实验共享同一后台线程槽（`UiManager::Worker`），互斥运行 |
+| OQ-24 | 扫描图表类型选择 | 三种 `ChartStyle`：**LineWithErrorBands**（折线+误差带：均值粗线 / ±std 深色带 / min~max 浅色带；Tests 1/2/4/7）；**GroupedBarsWithError**（分组柱状+误差须：X 轴类别分组，组内多色柱，须线=min~max；Tests 3/6）；**MultiLine**（多折线均值：不同线型区分系列；Test 5）。样式由 `ScanTestDef::Style` 硬编码指定 |
+| OQ-25 | 扫描 metric 提取方式 | 按 **名称匹配**（`IMetric::name() == spec.MetricName`），从 `RunResult::Metrics` 中查找对应 `MetricStats`，提取全部四个字段（Mean/Std/Min/Max）。`showDistribution() == false` 的 metric 仅 Mean 有效 |
+| OQ-26 | 扫描维度角色（X 轴 / 系列 / 分图） | 每条 `ScanDimension` 有三种角色：**XDim**（必选，图表横轴）；**SeriesDim**（可选，同图多色/多线型系列）；**ChartDim**（可选，每个取值生成独立图表）。Algorithm 作为特殊维度，由 `ALL_ALGORITHMS` 注册表解析为 `IEstimator`。若 Algorithm 不是 ChartDim/SeriesDim，则使用 `FixedEstimator` |
 
 ---
 

@@ -5,8 +5,7 @@
 ## Project
 
 **ISPPracticeOne** — C++20 signal frequency estimation simulation framework (MSYS2 UCRT64).
-Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.5).
-
+Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.6).
 ## Current Status
 
 ### Commits (local, NOT pushed)
@@ -48,7 +47,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 | M1 | Core types + Signal/Window skeleton + MonteCarlo complete | ✅ Done (`7875d71`) |
 | M2 | FFT estimators + core/fft + rng + signal + window + metrics | ✅ Done (multiple commits) |
 | M3 | MUSIC/ESPRIT | ✅ Done — both implemented by user (beam-space MUSIC + Hankel ESPRIT via Eigen) |
-| M4 | (merged into M2) Metrics + Statistics | ✅ Done (`0b3184c`) |
+| M4 | (merged into M2) Metrics + Statistics; **Batch Scan Tests** | ✅ Metrics/Stats done; ✅ Scan tests implemented (ScanTestRunner + ScanResultsPanel, 7 tests / 23 charts). ⚠️ Known multi-test crash — see "Known Issues" below |
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
 | M6 | End-to-end smoke test | ✅ Done — user verified all 4 algorithms |
 
@@ -58,26 +57,44 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 - **Metrics revision** (`85e330f`) — removed metric enable/disable checkbox; corrected RMSE (was computing MSE, name was `"MSE"`); added per-metric `format()` + `showDistribution()` to `IMetric`; `RunResult` changed from `unordered_map<string, MetricStats>` to `vector<MetricResult>`. Doc tracked as v1.2 in `development_solution.md` (§6.4, §8.3, §8.5, OQ-11/12/13). Outside M1–M6 scope; user-initiated revision.
 - **UI bug fixes** (`a73421b` + `ad94f78`) — fixed double-shutdown segfault on window close (OQ-14); fixed ImPlot axis auto-refit on new experiment data via conditional `ImPlotCond` (OQ-15); added interference frequency reference line (OQ-16); spectrum plots wrapped in resizable `BeginChild` containers. Doc tracked as v1.3 in `development_solution.md` (§7.3, §8.4, §8.7, OQ-14~16).
 - **Signal amplitude removal** (`f9f800d`) — removed `SignalSpec::Amplitude`; fixed to 1.0; interference amplitude now implicitly relative. Doc tracked as v1.4 (§5.2, §6.2, §8.3, OQ-17).
-- **Metrics architecture redesign** (uncommitted, this session, doc v1.5 OQ-18~21) — three changes fully implemented:
-  1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18) — `types.h`, `fft.cpp` (`.Prominence = p.Prominence`), `fft_interpolate.cpp` (`.Prominence = PROMINENCE_UNKNOWN`)
-  2. `RmseMetric` → `MseMetric`: files renamed `rmse.{h,cpp}` → `mse.{h,cpp}`; `format()` no sqrt; `name()` → `"MSE"`; peak selection changed to max-Prominence (OQ-19 + OQ-21)
-  3. New `RelativeEfficiencyMetric` (aggregate): `η = CRB/SampleVariance`; `IMetric` extended with `isAggregate()` / `finalize()`. **⚠️ Currently DISABLED** — model assumptions don't match CRB conditions; code retained but not wired into Runner / UI
+- **Metrics architecture redesign** (committed `b6c7efc` + `568de70`, doc v1.5 OQ-18~21) — three changes:
+  1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18)
+  2. `RmseMetric` → `MseMetric`: files renamed; `format()` no sqrt; max-Prominence peak selection (OQ-19+21)
+  3. `RelativeEfficiencyMetric` added but **disabled** — model assumptions don't match CRB conditions; code retained but not wired (OQ-20)
+- **Batch scan test architecture** (implemented, doc v1.6 OQ-22~26) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (23 charts total). New `ScanResultsPanel` with resizable ImPlot windows. Default params + test specs fully specified by user. ⚠️ Multi-test silent crash exists — see "Known Issues" below.
 
 ### Working tree
 
-**Pending (uncommitted)** — RelativeEfficiency metric disabled + doc sync:
-
-**Modified files (4)**:
-- `src/experiment/experiment_runner.cpp` — removed aggregate metric wiring (`has_aggregate` / `freq_estimates` / `finalize()` call); restored simple evaluate+computeStats loop
-- `src/ui/panels/config_panel.cpp` — removed `RelativeEfficiencyMetric` include + registration (back to 3 metrics)
-- `include/ispp/metrics/relative_efficiency.h` — added disabled `@note` + re-enablement instructions
-- `src/metrics/relative_efficiency.cpp` — added disabled comment header
-
-**Doc/context (2)**:
-- `.opencode/context/development_solution.md` — §6.4 table + §8.3 + OQ-20 updated to reflect disabled status
+**Committed (this session)** — batch scan test architecture (code + docs):
+- `src/experiment/scan_test_runner.cpp` + `include/ispp/experiment/scan_test_runner.h` — multi-dimension scan runner (7 tests, 3 chart styles)
+- `src/ui/panels/scan_results_panel.cpp` + `include/ispp/ui/panels/scan_results_panel.h` — ImPlot results panel (LineWithErrorBands / GroupedBarsWithError / MultiLine)
+- `src/ui/ui_manager.cpp` + `include/ispp/ui/ui_manager.h` — background scan thread, progress polling, result handoff
+- `src/ui/panels/config_panel.cpp` + `include/ispp/ui/panels/config_panel.h` — "Run Scan Tests" button + scan state
+- `CMakeLists.txt` — scan sources registered
+- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — i18n catalog updates
+- `.opencode/context/development_solution.md` — v1.6 scan architecture docs
 - `.opencode/context/progress.md` — this file
 
-### What's Implemented (code on disk, ALL COMPLETE except MUSIC/ESPRIT algorithm)
+**Unstaged (uncommitted)** — not part of the scan commit:
+- `third_party/imgui` (submodule) — `imconfig.h` `ImDrawIdx unsigned int` enabled. This was an earlier (incorrect) crash hypothesis targeting the 16-bit vertex index limit. It did **not** fix the multi-test crash (root cause is gettext thread-safety — see Known Issues). May be reverted or kept as a beneficial hardening for 23-chart rendering.
+
+### Known Issues
+
+**Multi-test silent crash (PENDING FIX)** — `ScanTestRunner` crashes silently when tests 4–7 run together (typically during Test 5 "SNR x SampleCount", around pt 9/21). Individual tests or small subsets run fine. No C++ exception is thrown; `try/catch` cannot catch it; the process simply exits.
+
+**Root cause (confirmed via headless repro)**: GNU gettext `dgettext` is **not thread-safe**. The scan worker thread calls `metric->name()` (which calls `_UI()` → `dgettext`) during metric matching in `scan_test_runner.cpp`, while the main UI thread calls `_UI()` every frame across all panels. Concurrent `dgettext` corrupts internal state → silent process exit.
+
+**Verification**: A headless single-threaded repro (no UI, no ImGui) runs all 7 tests to completion successfully (`NATIVE_EXIT: 0`). The crash only manifests with the UI thread active.
+
+**Pending fix (NOT YET APPLIED)**:
+1. `IMetric::name()` should return a **stable English msgid** (no `_UI()` call) — acts as a locale-independent key + i18n lookup source.
+2. UI display side translates: `_UI(metric->name().data())`.
+3. `scan_test_runner.cpp` compares against the English msgid directly (no `_UI()` in the worker thread path).
+4. Ensures zero `dgettext` calls from the worker thread.
+
+Affected files for the fix: `src/metrics/percentage_error.cpp`, `src/metrics/mse.cpp`, `src/metrics/compute_time.cpp`, `src/metrics/relative_efficiency.cpp`, `src/experiment/scan_test_runner.cpp`.
+
+### What's Implemented (code on disk, ALL COMPLETE)
 
 **Core layer**:
 - `src/core/rng.cpp` — ✅ four distribution samplers (normal/uniform/laplace/impulse)
@@ -446,6 +463,16 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 
 **Lesson**: When a class has both an explicit lifecycle method (`run()`) and a destructor that calls the same cleanup (`shutdown()`), calling cleanup from both paths causes double-free. Pick one cleanup invocation point — preferably the destructor (RAII) — and make the lifecycle method NOT call cleanup. If idempotent shutdown is needed (e.g., `run()` might be called multiple times), add a guard flag; but the simplest fix is to trust RAII.
 
+### 20. GNU gettext `dgettext` is NOT thread-safe — silent crash from worker-thread UI calls (NEW this session)
+
+**Mistake**: `IMetric::name()` implementations wrapped their return string in `_UI()` (→ `dgettext("ui", ...)`). The scan test **worker thread** calls `metric->name()` during metric matching in `scan_test_runner.cpp` (`mr.MetricObj->name() == _UI(metric_name.c_str())`). Simultaneously, the **main UI thread** calls `_UI()` every frame across all panels. GNU gettext's `dgettext` is not thread-safe — concurrent calls corrupt internal state, producing a **silent process exit** (no exception, no segfault text, not catchable by `try/catch`).
+
+**Symptom**: Running tests 4–7 together crashed around Test 5 pt 9/21. Single tests or small subsets ran fine (the race window was too short). A headless single-threaded repro ran all 7 tests successfully — proving the computation path was correct and the crash was purely a threading/gettext issue.
+
+**Resolution (pending)**: `name()` must return a **stable English msgid** (literal, no `_UI()`). The UI display layer translates on the main thread: `_UI(metric->name().data())`. The worker thread compares against the English msgid directly — zero `dgettext` calls off the main thread.
+
+**Lesson**: Any function that may be called from a background thread must NEVER call `dgettext`/`gettext`/`_UI()`. i18n translation is a **display-only** concern — do it on the UI thread at render time, not in data/business-logic code. Stable English msgids serve double duty as locale-independent comparison keys and as i18n lookup sources.
+
 ## Build & Validation Commands
 
 ```powershell
@@ -472,6 +499,6 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v1.5**, ~1136 lines). Updated through: PeakFinder §5.5 (v1.1); metrics revision §6.4/§8.3/§8.5/OQ-11~13 (v1.2); RunResult struct sync §7.3, spectrum panel §8.4, RAII shutdown §8.7, OQ-14~16 (v1.3); signal amplitude removal §5.2/§6.2/§8.3/OQ-17 (v1.4); FrequencyPeak.Prominence §5.1/§5.4/§6.3, MSE rename §6.4/§8.3/§8.5/OQ-19, RelativeEfficiency + IMetric aggregate extension §6.4/§6.4.1/§7.4/OQ-20 (v1.5). **i18n layer NOT documented here** — it is user-initiated scope outside M1–M6.
+- `.opencode/context/development_solution.md` — authoritative plan (**v1.6**, ~1443 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25).
 - `.opencode/context/progress.md` — this file
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)

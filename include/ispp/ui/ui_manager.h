@@ -3,9 +3,11 @@
 
 #include "ispp/experiment/experiment_config.h"
 #include "ispp/experiment/experiment_runner.h"
+#include "ispp/experiment/scan_test_runner.h"
 #include "ispp/ui/panels/config_panel.h"
 #include "ispp/ui/panels/log_panel.h"
 #include "ispp/ui/panels/results_panel.h"
+#include "ispp/ui/panels/scan_results_panel.h"
 #include "ispp/ui/panels/spectrum_panel.h"
 
 #include <atomic>
@@ -45,10 +47,19 @@ private:
     std::mutex ResultMutex;
     std::optional<RunResult> PendingResult;
 
+    // --- 扫描测试线程 ---
+    std::thread ScanWorker;
+    std::atomic<bool> ScanRunning{false};
+    std::atomic<float> ScanProgress{0.0f};
+    std::mutex ScanResultMutex;
+    std::optional<std::vector<ScanTestOutput>> PendingScanResults;
+    std::optional<std::vector<ScanTestOutput>> ScanResults;
+
     // --- 面板 ---
     ConfigPanel ConfigPanel;
     SpectrumPanel SpectrumPanel;
     ResultsPanel ResultsPanel;
+    ScanResultsPanel ScanResultsPanel;
     LogPanel Log;
 
     // --- 初始化 / 清理 ---
@@ -60,6 +71,10 @@ private:
     void startExperiment(std::shared_ptr<IEstimator> estimator,
                          std::vector<std::shared_ptr<IMetric>> metrics);
     void pollExperiment();
+
+    // --- 扫描测试控制 ---
+    void startScanTests();
+    void pollScanTests();
 
     // --- 渲染 ---
     void renderMainMenuBar();

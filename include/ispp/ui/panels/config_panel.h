@@ -15,9 +15,15 @@ namespace ui {
 
 /// 运行请求状态（UiManager 与 ConfigPanel 共享）。
 struct RunState {
+    // 单次实验
     bool Pending = false;
     float Progress = 0.0f;
     bool Running = false;
+
+    // 批量扫描测试
+    bool ScanPending = false;
+    bool ScanRunning = false;
+    float ScanProgress = 0.0f;
 };
 
 /// 实验配置面板。
