@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.9 |
+| 文档版本 | v2.0 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-30（metric 身份键重构：name() 返回英语 msgid，worker 线程零 gettext OQ-32） |
+| 最近修订 | 2026-07-31（ESPRIT 极致优化分析：基于三份独立分析文档的横向综合，得到修正后 Unitary ESPRIT 计算流程，见 esprit.md；实现尚未重构） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -591,6 +591,16 @@ private:
 /// ESPRIT 频率估计算法（用户已实现 — Hankel 矩阵 + 子空间旋转）。
 /// @see Paper 10.1109/FOCS61266.2024.00137
 /// @note 需要较高优化级别（如 -O3）才能在合理时间内完成计算
+///
+/// ⚠️ 优化重构待进行（OQ-33）：当前实现为标准复数 ESPRIT，基于三份
+/// 独立分析文档的横向综合审阅已完成（esprit-1/2/3.md），已得到修正后
+/// 的 Unitary ESPRIT 全实数流程。实现参考 `.opencode/context/esprit.md`。
+/// 优化后预期：$K=1$ 场景 ~7× 加速，$K=2$ 场景 ~1× 不变（$L$ 无法缩减）。
+///
+/// 关键优化方向：① 全实数运算（MatrixXd 替代 MatrixXcd）；
+/// ② $L$ 自适应（$K=1$ 时 $L=N/4$）；③ 稀疏 Q 块公式消除复数乘法；
+/// ④ 正规方程替代 SVD 伪逆；⑤ 实 EVD（EigenSolver<MatrixXd> 替代 ComplexEigenSolver）；
+/// ⑥ 可靠性检验（Haardt §IV-C）；⑦ 跳过 Vandermonde 重建。
 class EspritEstimator final : public IEstimator {
 public:
     EspritEstimator() = default;
@@ -634,6 +644,13 @@ public:
 >    向量化。开发期 Debug 模式下执行时间可能慢 10× 以上。
 >    参见 CMake 选项 `ISPP_ENABLE_NATIVE` / `ISPP_ENABLE_X86_64_V4` /
 >    `ISPP_ENABLE_X86_64_V3`（§10.1）。
+> 3. **ESPRIT 极致优化分析已完成（OQ-33）**：基于三份独立分析文档的横向
+>    综合审阅，得出了修正后的 Unitary ESPRIT 全实数优化流程。核心改进：
+>    ① 全实数运算消除复数乘（~2.8× FLOPs 优势）；② $L$ 自适应缩减
+>    （$K=1$ 时 $L=N/4$，~8× 加速）；③ 稀疏 Q 块公式；④ 正规方程替代
+>    SVD 伪逆；⑤ 实 EVD；⑥ 可靠性检验；⑦ 跳过 Vandermonde 重建。
+>    完整实现指南见 `.opencode/context/esprit.md`。**当前代码尚未据此
+>    重构**——现有 `esprit.cpp` 仍为标准复数 ESPRIT。
 
 ### 6.4 Metrics（**完整实现**）
 
@@ -1485,7 +1502,7 @@ endif()
 |---|---|---|
 | M1 | Core 类型 + Signal/Window 骨架 + 蒙特卡洛完整 | 骨架 + MonteCarlo 实现 |
 | M2 | FFT 估计器 + core/fft + rng + signal + window + metrics | 全部完整 |
-| M3 | MUSIC/ESPRIT | MUSIC + ESPRIT 均由用户实现（beam-space MUSIC + Hankel ESPRIT，via Eigen） |
+| M3 | MUSIC/ESPRIT | MUSIC + ESPRIT 均由用户实现（beam-space MUSIC + Hankel ESPRIT，via Eigen）。⚠️ ESPRIT 优化重构待进行（OQ-33）：当前为标准复数 ESPRIT，基于三份独立分析文档的横向审阅已完成（esprit-1/2/3.md），得到修正后 Unitary ESPRIT 全实数优化流程（esprit.md），尚未编码 |
 | M4 | （已合并至 M2）Metrics + Statistics；**批量扫描测试（扫描架构 + ImPlot 图表）** | Metrics/Statistics 已完成；扫描测试架构已设计（§7.5~§7.6, §8.8），待实现 |
 | M5 | UI 完整 + main.cpp | **完整实现** |
 | M6 | 端到端冒烟（用户实现任一算法后即可跑） | ✅ **已完成** — 用户已验证全部 4 个算法可运行 |
@@ -1531,7 +1548,7 @@ endif()
 | `estimator/fft_peak.cpp` 峰值估计（可调用 core/fft） | 用户（可已完成） |
 | `estimator/fft_interpolate.cpp` 插值估计（按 windowKind 分支） | 用户（已完成） |
 | `estimator/music.cpp` | 用户（**已完成** — beam-space MUSIC via Eigen SVD + pseudospectrum peak search） |
-| `estimator/esprit.cpp` | 用户（**已完成** — Hankel 矩阵 + 子空间旋转 via Eigen；@see 10.1109/FOCS61266.2024.00137） |
+| `estimator/esprit.cpp` | 用户（**已完成** — Hankel 矩阵 + 子空间旋转 via Eigen；@see 10.1109/FOCS61266.2024.00137）。⚠️ **优化重构待进行**（OQ-33）：当前为标准复数 ESPRIT，基于 esprit-1/2/3.md 的横向审阅已得到修正后 Unitary ESPRIT 全实数流程，参考 `.opencode/context/esprit.md` |
 
 > **算法实现完毕后无需修改蒙特卡洛或 UI**：因 `ExperimentRunner` 仅依赖 `IEstimator` / `IMetric` 抽象接口。
 > **推荐**：estimator 内部优先调用 `computeDft` / `findPeaksFromDft`，避免重复实现 PocketFFT 封装。
@@ -1586,6 +1603,7 @@ endif()
 | OQ-30 | 扫描面板完整 i18n（v1.8） | `ChartResult` 新增原子标题分量 `TestName`/`ChartDimLabel`/`IsOverview`；`SeriesResult` 新增 `PeakRank`。worker 线程只存英语 msgid（标题英文组合串仅作稳定 ID），UI 线程经 `localizedTitle()`/`localizedSeriesLabel()`/`_UI()` 本地化显示。`Peak %d` 经翻译后 `snprintf` 生成（zh_CN→"峰 N"）。⚠️ 既有事实修正（v1.8）：当时 `IMetric::name()` 各实现 `return _UI(...)`（本地化串，在 worker 线程被调用），扫描匹配沿用 `name() == _UI(metric_name)`。**v1.9 已彻底解决**（见 OQ-32）：`name()` 改为返回英语身份键，扫描匹配改为 `name() == metric_name`，worker 线程零 gettext |
 | OQ-31 | 扫描图表留白与尺寸（v1.8） | 全部扫描图表 X/Y 双侧各留 5% 数据范围：`ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` 包裹 `render()`（`ApplyFit` 每侧增 `(range/2)×pad`，故 0.1→每侧 5%）；作用域仅扫描面板。`plotSize()` 返回 `availableWidth − fontSize×2.5` 收窄绘图区，避免最右 X 刻度标签被子容器边框遮挡。移除 GroupedBars 原硬编码 `SetupAxisLimits(±0.6)`，改由自动拟合+FitPadding 统一处理 |
 | OQ-32 | metric 身份键重构——去除 worker 线程 gettext（v1.9） | `IMetric::name()` 改为返回英语 msgid 字面量（locale 无关的身份键，兼作 gettext 翻译键），不再调用 `_UI()`。结果显示层在 UI 线程经 `_UI(name())` 本地化（原 `_UI(name())` 由"无操作双重翻译"变为正确单次翻译）。扫描测试 metric 匹配由 `name() == _UI(metric_name)` 改为 `name() == metric_name`（英语==英语），并移除 `scan_test_runner.cpp` 的 `i18n.h`。`experiment_runner` 本就不调用 `name()`/gettext。结果：worker 线程（scan/experiment runner + metric evaluate/finalize）**零** `_UI`/dgettext；`src/metrics/` 仅余 `relative_efficiency::format()` 的 `_UI("N/A")`（UI 线程）。附带安全收益：`name()` 的 `string_view` 由指向 gettext 静态缓冲区改为指向永久字面量存储。四条 metric 名 msgid 改为手工维护（xgettext 不再自动提取）。本变更落实了旧 Lesson 21 当年未真正实施的"预防性修复" |
+| OQ-33 | ESPRIT 极致优化分析（v2.0） | 基于三份独立分析文档（esprit-1/2/3.md）的横向综合审阅，发现了三文件中的三处关键错误（esprit-1.md 子空间秩 $r=K$ 应为 $r=2K$；esprit-2.md 选择矩阵 $J_1+J_2$ 应为 $J_1+\Pi J_1\Pi$；esprit-2.md 估计器内真频筛选违反需求），得出修正后的统一 Unitary ESPRIT 数学计算流程。新流程采用：全实数运算、$L$ 自适应缩减（$K=1$ 时 $L=N/4$，$K=2$ 时 $L=N/2$）、稀疏 Q 块公式消除复乘、正规方程替代 SVD 伪逆、实 EVD + 可靠性检验。参考 `esprit.md` 为最终实现指南。**当前 `src/estimator/esprit.cpp` 尚未基于此分析重构**，仍为标准复数 ESPRIT 实现 |
 
 ---
 

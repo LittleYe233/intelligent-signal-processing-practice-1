@@ -82,6 +82,16 @@ Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` and `d408f7b` are **
   2. **Full scan-panel i18n (OQ-30)**: `ChartResult` gained atomic title fields `TestName`/`ChartDimLabel`/`IsOverview`; `SeriesResult` gained `PeakRank`. Worker stores English msgids only (no `_UI()` in `scan_test_runner.cpp` beyond the pre-existing metric-matching line); UI thread localizes via `localizedTitle()` / `localizedSeriesLabel()` (`"Peak %d"` → snprintf → "峰 N") / `_UI()`. Tick-label arrays materialized into `std::vector<std::string>` first to dodge the dgettext static-buffer aliasing trap. 19 new msgids added to `ui.po`/`ui.pot` (zh_CN). **Lesson 21 corrected**: metric `name()` actually returns `_UI(...)` (localized) and IS called on the worker thread — the "preventive fix" described in old Lesson 21 was never applied to the metric classes.
   3. **Chart padding + width (OQ-31)**: `ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` around `render()` → 5% padding each side both axes (verified via `ApplyFit`: each side += `(range/2)×pad`); scoped to scan panel only. `plotSize()` narrows plot width by `fontSize×2.5` so the rightmost X label clears the child border. Removed the hardcoded grouped-bars `SetupAxisLimits(±0.6)`.
 - **Metric identity-key refactor — worker-thread gettext eliminated** (2026-07-30, **committed `d408f7b`, not pushed**; doc v1.9 OQ-32) — `IMetric::name()` now returns the English msgid literal (no `_UI()`), making it the locale-independent identity key (gettext-canonical, DRY — `name()` *is* the id, no separate `id()` method). Scan matching → `name() == metric_name`; `experiment_runner` was already gettext-free; display layer's existing `_UI(name())` becomes a correct single translation. Result: **zero** `_UI`/`dgettext` on any worker thread; `src/metrics/` retains only `relative_efficiency::format()`'s `_UI("N/A")` (UI thread). Bonus: `name()`'s `string_view` now spans permanent literal storage, not gettext's static buffer. Implements the fix old Lesson 21 described but never actually applied.
+- **ESPRIT extreme optimization analysis (OQ-33, v2.0, 2026-07-31)** — Commissioned three independent AI agents to analyze the same two papers (Haardt & Nossek 1995, Ding et al. 2024) and produce ESPRIT optimization analyses, stored as `esprit-1.md`, `esprit-2.md`, `esprit-3.md`. Performed a cross-file audit identifying three critical errors across the three agents' outputs:
+  1. **esprit-1.md §2.1** — Model order `r = K` instead of correct `r = 2K`. Full algorithm uses wrong subspace dimension.
+  2. **esprit-2.md §5.2** — Selection matrix formula uses `J₁+J₂` instead of Haardt's correct `J₁+ΠJ₁Π`. Lacks centro-symmetric coupling.
+  3. **esprit-2.md §Step 8** — Internal reference-frequency filtering (`arg min |f̂−f_ref|`) violates user requirement to output ALL candidates without prior knowledge.
+  
+  These were resolved into a single corrected **Unitary ESPRIT** mathematical flow (9 steps, full real-domain arithmetic) with adaptive `L` selection, sparse Q-block formula, normal-equation LS, real EVD + reliability check, and no internal frequency filtering. The analysis and corrected flow are documented in:
+  - `.opencode/context/esprit-comparison.md` — cross-file audit, error diagnosis, conflict resolution
+  - `.opencode/context/esprit.md` — **final deliverable**, self-contained implementation guide
+  
+  **The implementation refactor has NOT been performed yet.** The current `src/estimator/esprit.cpp` remains the original complex-domain standard ESPRIT. Future implementation should follow `.opencode/context/esprit.md`. Doc updated to v2.0 with OQ-33.
 
 ### Working tree
 
@@ -556,7 +566,12 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v1.8**, ~1620 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25); v1.7 LogPanel ring buffer fix (OQ-27) + Test 7 PerPeak mode (OQ-28); **v1.8 scan test spec rework (§7.7, 14 charts) + scan-panel full i18n + chart FitPadding/width (OQ-29~31)**.
+- `.opencode/context/development_solution.md` — authoritative plan (**v2.0**, ~1620 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25); v1.7 LogPanel ring buffer fix (OQ-27) + Test 7 PerPeak mode (OQ-28); v1.8 scan test spec rework (§7.7, 14 charts) + scan-panel full i18n + chart FitPadding/width (OQ-29~31); **v1.9 metric identity-key refactor (OQ-32**); **v2.0 ESPRIT extreme optimization analysis — cross-file audit of esprit-1/2/3.md, corrected Unitary ESPRIT flow (OQ-33), implementation NOT yet refactored**.
 - `.opencode/context/progress.md` — this file
-- `.tmp/sessions/2026-07-30-scan-test-i18n-rework/context.md` — current session context (scan rework + i18n + chart polish)
+- `.opencode/context/esprit-1.md` — ESPRIT analysis agent #1 (aggressive L reduction; **has model-order error: r=K**)
+- `.opencode/context/esprit-2.md` — ESPRIT analysis agent #2 (conservative L=N/2; **has K₁ formula error and internal freq-filtering violation**)
+- `.opencode/context/esprit-3.md` — ESPRIT analysis agent #3 (correct model order r=2K; square-root SVD preferred)
+- `.opencode/context/esprit-comparison.md` — cross-file audit and error diagnosis of esprit-1/2/3.md (written 2026-07-31)
+- `.opencode/context/esprit.md` — **final deliverable**: corrected Unitary ESPRIT implementation guide (written 2026-07-31, v2.0)
+- `.tmp/sessions/2026-07-30-scan-test-i18n-rework/context.md` — stale session from scan rework (safe to delete; committed)
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)
