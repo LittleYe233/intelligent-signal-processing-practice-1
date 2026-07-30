@@ -18,6 +18,8 @@ pacman -Syu mingw-w64-ucrt-x86_64-clang mingw-w64-ucrt-x86_64-gdb mingw-w64-ucrt
 pacman -Syu mingw-w64-ucrt-x86_64-glfw mingw-w64-ucrt-x86_64-gettext-runtime mingw-w64-ucrt-x86_64-gettext-tools
 ```
 
+确保 MSYS2 环境的可执行文件可以在 Windows PowerShell 环境中发现。
+
 克隆本仓库：
 
 ```shell
@@ -40,7 +42,16 @@ cmake -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE 
 cmake -DISPP_ENABLE_NATIVE=ON -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -B build -G Ninja
 ```
 
-CMake configure 之后，可以开始编译：
+如果需要更新国际化翻译文件，可以在 PowerShell 中执行如下命令：
+
+```pwsh
+xgettext -C --keyword=_UI --from-code=UTF-8 -o .\locales\pot\ui.pot @((Get-ChildItem -Path "src" -Recurse -Filter "*.cpp").FullName)
+msginit -l zh_CN.UTF-8 -i .\locales\pot\ui.pot -o .\locales\zh_CN\ui.po
+```
+
+注意，不能删除本仓库自带的 `locales/zh_CN/ui.po` 文件，因为其中有 `xgettext` 无法自动生成的必要翻译条目。但是可以用上述命令更新目前的条目。
+
+CMake configure 之后，可以开始编译（这个过程会自动从 `locales/zh_CN/ui.po` 中编译出 `ui.mo` 并放置在 `build` 中的指定位置）：
 
 ```shell
 cmake --build build

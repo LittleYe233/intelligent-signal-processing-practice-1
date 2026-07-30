@@ -18,6 +18,8 @@ Then install the required third-party libraries:
 pacman -Syu mingw-w64-ucrt-x86_64-glfw mingw-w64-ucrt-x86_64-gettext-runtime mingw-w64-ucrt-x86_64-gettext-tools
 ```
 
+Make sure the MSYS2 executables are discoverable in the Windows PowerShell environment.
+
 Clone this repository:
 
 ```shell
@@ -40,7 +42,16 @@ cmake -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE 
 cmake -DISPP_ENABLE_NATIVE=ON -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -B build -G Ninja
 ```
 
-After configuring with CMake, build with:
+To update the internationalization translation files, run the following commands in PowerShell:
+
+```pwsh
+xgettext -C --keyword=_UI --from-code=UTF-8 -o .\locales\pot\ui.pot @((Get-ChildItem -Path "src" -Recurse -Filter "*.cpp").FullName)
+msginit -l zh_CN.UTF-8 -i .\locales\pot\ui.pot -o .\locales\zh_CN\ui.po
+```
+
+> **Note**: do **not** delete the `locales/zh_CN/ui.po` file shipped with the repository — it contains essential translation entries that `xgettext` cannot auto-generate. The command above can be used to update the existing entries.
+
+After configuring with CMake, CMake's build system will automatically compile the `.po` file into a `.mo` binary and place it in the `build` directory. Then build with:
 
 ```shell
 cmake --build build

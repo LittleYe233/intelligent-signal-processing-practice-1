@@ -8,10 +8,11 @@
 Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.9).
 ## Current Status
 
-### Commits (`origin/main` at `a065e9f`; local HEAD = `98d6e30`, NOT pushed)
+### Commits (`origin/main` at `a065e9f`; local HEAD = `d408f7b`, NOT pushed)
 
 | Hash | Message |
 |---|---|
+| `d408f7b` | ♻️ refactor(metrics): make name() a locale-independent identity key |
 | `98d6e30` | ✨ feat(scan): rework test specs, localize panel, and pad charts |
 | `a065e9f` | docs: add README and LICENSE |
 | `778af51` | ✨ feat(scan): add per-peak error visualization for interference scan |
@@ -52,7 +53,7 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 | `982b5ec` | feat(test): add test_implot and set up clang tools |
 | `d41ec19` | feat: add test_fft and deps |
 
-Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` (the scan-rework commit) is **local only — NOT pushed** (user: "never push"). The metric identity-key refactor (OQ-32) is **uncommitted** on top — see "Working tree" below.
+Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` and `d408f7b` are **local only — NOT pushed** (user: "never push"). The README.md update is **uncommitted** on top — see "Working tree" below.
 
 ### Milestone Progress
 
@@ -80,19 +81,15 @@ Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` (the scan-rework com
   1. **Test spec rework (OQ-29)**: Tests 1/2/4 → Algorithm as *series* (4 lines) + MULTI_LINE (drop error bands); Test 1 keeps both metrics (2 charts), Tests 2/4 = 1 each; Test 4 drops `GenerateOverview`. Test 5 → `ChartDim=Algorithm{Interpolate,MUSIC,ESPRIT}` (3 charts; adds MUSIC/ESPRIT). Test 6 → `ChartDim=SNR{−3,10 dB}` (2 charts; adds 10 dB), and fixed X-axis algo set to Interpolate/MUSIC/ESPRIT. Tests 3/7 unchanged. **Total 23→14 charts.** Consequence: `LineWithErrorBands` (Style A) is now unreferenced by any test (dead render path, retained).
   2. **Full scan-panel i18n (OQ-30)**: `ChartResult` gained atomic title fields `TestName`/`ChartDimLabel`/`IsOverview`; `SeriesResult` gained `PeakRank`. Worker stores English msgids only (no `_UI()` in `scan_test_runner.cpp` beyond the pre-existing metric-matching line); UI thread localizes via `localizedTitle()` / `localizedSeriesLabel()` (`"Peak %d"` → snprintf → "峰 N") / `_UI()`. Tick-label arrays materialized into `std::vector<std::string>` first to dodge the dgettext static-buffer aliasing trap. 19 new msgids added to `ui.po`/`ui.pot` (zh_CN). **Lesson 21 corrected**: metric `name()` actually returns `_UI(...)` (localized) and IS called on the worker thread — the "preventive fix" described in old Lesson 21 was never applied to the metric classes.
   3. **Chart padding + width (OQ-31)**: `ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` around `render()` → 5% padding each side both axes (verified via `ApplyFit`: each side += `(range/2)×pad`); scoped to scan panel only. `plotSize()` narrows plot width by `fontSize×2.5` so the rightmost X label clears the child border. Removed the hardcoded grouped-bars `SetupAxisLimits(±0.6)`.
-- **Metric identity-key refactor — worker-thread gettext eliminated** (2026-07-30, **uncommitted**; doc v1.9 OQ-32) — `IMetric::name()` now returns the English msgid literal (no `_UI()`), making it the locale-independent identity key (gettext-canonical, DRY — `name()` *is* the id, no separate `id()` method). Scan matching → `name() == metric_name`; `experiment_runner` was already gettext-free; display layer's existing `_UI(name())` becomes a correct single translation. Result: **zero** `_UI`/`dgettext` on any worker thread; `src/metrics/` retains only `relative_efficiency::format()`'s `_UI("N/A")` (UI thread). Bonus: `name()`'s `string_view` now spans permanent literal storage, not gettext's static buffer. Implements the fix old Lesson 21 described but never actually applied.
+- **Metric identity-key refactor — worker-thread gettext eliminated** (2026-07-30, **committed `d408f7b`, not pushed**; doc v1.9 OQ-32) — `IMetric::name()` now returns the English msgid literal (no `_UI()`), making it the locale-independent identity key (gettext-canonical, DRY — `name()` *is* the id, no separate `id()` method). Scan matching → `name() == metric_name`; `experiment_runner` was already gettext-free; display layer's existing `_UI(name())` becomes a correct single translation. Result: **zero** `_UI`/`dgettext` on any worker thread; `src/metrics/` retains only `relative_efficiency::format()`'s `_UI("N/A")` (UI thread). Bonus: `name()`'s `string_view` now spans permanent literal storage, not gettext's static buffer. Implements the fix old Lesson 21 described but never actually applied.
 
 ### Working tree
 
-**HEAD** = `98d6e30` (local, **not pushed**; `origin/main` at `a065e9f`). The scan-rework + panel-i18n + chart-polish work (the former 5 staged files) is **committed as `98d6e30`** — see the "Scan test rework..." bullet under Milestone Progress. Submodules verified clean at commit time.
+**HEAD** = `d408f7b` (local, **not pushed**; `origin/main` at `a065e9f`). The metric identity-key refactor (10 files) is **committed as `d408f7b`** — see the "Metric identity-key refactor" bullet under Milestone Progress.
 
-**Uncommitted (2026-07-30, metric identity-key refactor, OQ-32)** — `IMetric::name()` now returns the English msgid (no `_UI()`); worker-thread gettext fully eliminated:
-- `include/ispp/metrics/metric.h` — `name()` doc updated (English identity key; must not call `_UI`).
-- `src/metrics/{compute_time,mse,percentage_error}.cpp` — `name()` returns English literal; dropped `i18n.h` include.
-- `src/metrics/relative_efficiency.cpp` — `name()` returns English literal; `i18n.h` kept (`format()` still `_UI("N/A")`).
-- `src/experiment/scan_test_runner.cpp` — matching → `name() == metric_name`; dropped `i18n.h` include.
-- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — note added: 4 metric-name msgids are now hand-maintained identity keys.
-- `.opencode/context/development_solution.md` (v1.9, OQ-32) + `progress.md` — this update.
+**Uncommitted (2026-07-30, README update)** — synced the English README with the Chinese README-zh:
+- `README.md` — added MSYS2 PATH note and i18n translation update instructions (xgettext + msginit + note about locales/zh_CN/ui.po).
+- `.opencode/context/progress.md` — this update.
 
 ### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
