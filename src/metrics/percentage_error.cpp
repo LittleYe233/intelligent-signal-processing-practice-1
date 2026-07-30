@@ -1,5 +1,4 @@
 #include "ispp/metrics/percentage_error.h"
-#include "ispp/i18n.h"
 #include <algorithm>
 #include <cmath>
 #include <format>
@@ -24,7 +23,7 @@ double PercentageErrorMetric::evaluate(double true_frequency_hz,
 }
 
 std::string_view PercentageErrorMetric::name() const {
-    return _UI("Percentage Error");
+    return "Percentage Error";
 }
 
 std::string PercentageErrorMetric::format(double value) const {

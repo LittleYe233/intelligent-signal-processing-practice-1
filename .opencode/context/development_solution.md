@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.8 |
+| 文档版本 | v1.9 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-30（扫描测试规格重构 + 扫描面板完整 i18n + 图表留白/边距 OQ-29~31） |
+| 最近修订 | 2026-07-30（metric 身份键重构：name() 返回英语 msgid，worker 线程零 gettext OQ-32） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -1583,8 +1583,9 @@ endif()
 | OQ-27 | LogPanel 环形缓冲区越界 | `NextIdx` 无限递增（总写入计数），`render()` 以 `NextIdx` 为上界遍历 `Messages`。缓冲区回绕后（`NextIdx ≥ MAX_LOG`）循环越过 `Messages.size()` → 主线程 SIGSEGV。修复：回绕时用 `NextIdx % MAX_LOG` 分两段渲染；同时在锁内复制到 `RenderCopy` 向量再渲染，防止工作线程覆写导致悬垂 `c_str()` 指针 |
 | OQ-28 | Test 7 逐峰百分比误差 | `PerPeak = true` 跳过标准 metric 管线。MC=1 确定性运行，从 `LastPeaks` 提取所有峰并计算各自百分比误差，按误差升序排列。每个排位（Peak 1 = 最接近真频）画一条 MULTI_LINE 折线；排位不足处用 NaN 断线。适用于可视化干扰导致的频率分裂 |
 | OQ-29 | 扫描测试规格重构（v1.8） | Tests 1/2/4：Algorithm 由 ChartDim 改为 SeriesDim（4 算法同图 4 线）+ 样式改 MULTI_LINE（仅均值，弃用误差带）；Test 1 保留双 metric（PE+CT=2 图），Test 2/4 各 1 图；Test 4 移除 GenerateOverview（单张多线已等价）。Test 5：FixedEstimator→ChartDim=Algorithm{Interpolate,MUSIC,ESPRIT}（新增 MUSIC/ESPRIT 两图，排除 FFT Peak）=3 图。Test 6：SNR 由 Override(−3)→ChartDim{−3,10 dB}（新增 10 dB 一图）=2 图，并修正 X 轴算法集为 Interpolate/MUSIC/ESPRIT（原 v1.7 文档误标 FFT Peak/ESPRIT）。Tests 3/7 不变。总计 23→14 图。后果：Style A（LineWithErrorBands）不再被任何测试引用（见 §8.8） |
-| OQ-30 | 扫描面板完整 i18n（v1.8） | `ChartResult` 新增原子标题分量 `TestName`/`ChartDimLabel`/`IsOverview`；`SeriesResult` 新增 `PeakRank`。worker 线程只存英语 msgid（标题英文组合串仅作稳定 ID），UI 线程经 `localizedTitle()`/`localizedSeriesLabel()`/`_UI()` 本地化显示。`Peak %d` 经翻译后 `snprintf` 生成（zh_CN→"峰 N"）。⚠️ 既有事实修正：`IMetric::name()` 各实现实际 `return _UI(...)`（本地化串，在 worker 线程被调用），与旧 progress.md Lesson 21 描述不符；扫描测试 metric 匹配沿用 `name() == _UI(metric_name)`（本地化==本地化，locale 无关）。彻底去除 worker 线程 gettext 需重构 metric 类（独立任务） |
+| OQ-30 | 扫描面板完整 i18n（v1.8） | `ChartResult` 新增原子标题分量 `TestName`/`ChartDimLabel`/`IsOverview`；`SeriesResult` 新增 `PeakRank`。worker 线程只存英语 msgid（标题英文组合串仅作稳定 ID），UI 线程经 `localizedTitle()`/`localizedSeriesLabel()`/`_UI()` 本地化显示。`Peak %d` 经翻译后 `snprintf` 生成（zh_CN→"峰 N"）。⚠️ 既有事实修正（v1.8）：当时 `IMetric::name()` 各实现 `return _UI(...)`（本地化串，在 worker 线程被调用），扫描匹配沿用 `name() == _UI(metric_name)`。**v1.9 已彻底解决**（见 OQ-32）：`name()` 改为返回英语身份键，扫描匹配改为 `name() == metric_name`，worker 线程零 gettext |
 | OQ-31 | 扫描图表留白与尺寸（v1.8） | 全部扫描图表 X/Y 双侧各留 5% 数据范围：`ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` 包裹 `render()`（`ApplyFit` 每侧增 `(range/2)×pad`，故 0.1→每侧 5%）；作用域仅扫描面板。`plotSize()` 返回 `availableWidth − fontSize×2.5` 收窄绘图区，避免最右 X 刻度标签被子容器边框遮挡。移除 GroupedBars 原硬编码 `SetupAxisLimits(±0.6)`，改由自动拟合+FitPadding 统一处理 |
+| OQ-32 | metric 身份键重构——去除 worker 线程 gettext（v1.9） | `IMetric::name()` 改为返回英语 msgid 字面量（locale 无关的身份键，兼作 gettext 翻译键），不再调用 `_UI()`。结果显示层在 UI 线程经 `_UI(name())` 本地化（原 `_UI(name())` 由"无操作双重翻译"变为正确单次翻译）。扫描测试 metric 匹配由 `name() == _UI(metric_name)` 改为 `name() == metric_name`（英语==英语），并移除 `scan_test_runner.cpp` 的 `i18n.h`。`experiment_runner` 本就不调用 `name()`/gettext。结果：worker 线程（scan/experiment runner + metric evaluate/finalize）**零** `_UI`/dgettext；`src/metrics/` 仅余 `relative_efficiency::format()` 的 `_UI("N/A")`（UI 线程）。附带安全收益：`name()` 的 `string_view` 由指向 gettext 静态缓冲区改为指向永久字面量存储。四条 metric 名 msgid 改为手工维护（xgettext 不再自动提取）。本变更落实了旧 Lesson 21 当年未真正实施的"预防性修复" |
 
 ---
 

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-24 12:54+0800\n"
+"POT-Creation-Date: 2026-07-30 23:29+0800\n"
 "PO-Revision-Date: 2026-07-22 01:13+0800\n"
 "Last-Translator: <EMAIL@ADDRESS>\n"
 "Language-Team: Chinese (simplified)\n"
@@ -15,22 +15,6 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\compute_time.cpp:14
-msgid "Compute Time"
-msgstr "计算时间"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\mse.cpp:25
-msgid "MSE"
-msgstr "均方误差"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\percentage_error.cpp:27
-msgid "Percentage Error"
-msgstr "百分比误差"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\relative_efficiency.cpp:24
-msgid "Relative Efficiency"
-msgstr "相对效率"
 
 #: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\relative_efficiency.cpp:29
 msgid "N/A"
@@ -245,6 +229,31 @@ msgstr "  峰 %zu: %.3f Hz  (幅值 = %.4e)"
 msgid "  (no peaks detected)"
 msgstr "  (未检测到峰)"
 
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:67
+msgid "overview"
+msgstr "总览"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:104
+#, c-format
+msgid "Peak %d"
+msgstr "峰 %d"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:125
+msgid "Scan Test Results"
+msgstr "扫描测试结果"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:132
+msgid "No scan results — run scan tests first."
+msgstr "暂无扫描结果——请先运行扫描测试"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:233
+msgid "min–max range"
+msgstr "最小–最大范围"
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:242
+msgid "mean ± σ"
+msgstr "均值 ± 标准差"
+
 #: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:14
 msgid "Single Simulation"
 msgstr "单次仿真"
@@ -282,82 +291,50 @@ msgstr "干扰频率"
 msgid "Peaks"
 msgstr "峰值"
 
-# --- 扫描测试结果面板（scan_results_panel.cpp，UI 线程 _UI 字面量）---------
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:97
-msgid "Scan Test Results"
-msgstr "扫描测试结果"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:104
-msgid "No scan results — run scan tests first."
-msgstr "暂无扫描结果——请先运行扫描测试。"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:200
-msgid "min–max range"
-msgstr "最小–最大范围"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:209
-msgid "mean ± σ"
-msgstr "均值 ± σ"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:66
-msgid "overview"
-msgstr "总览"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp
-msgid "Peak %d"
-msgstr "峰 %d"
-
 # --- 数据驱动的 msgid（定义于 scan_test_runner.cpp 的运行期数据，
 # 该文件运行于 worker 线程故不直接 _UI() 包裹；由 UI 线程经 _UI(var) 查询。
-# 注意：xgettext 无法自动提取，需手工维护；重生成 .pot 时须保留本组条目。）-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
+# 注意：xgettext 无法自动提取，需手工维护；重生成 .pot 时须保留本组条目。
+msgid "Compute Time"
+msgstr "计算时间"
+
+msgid "Percentage Error"
+msgstr "百分比误差"
+
 msgid "SampleCount scan"
 msgstr "采样点数扫描"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Frequency scan"
 msgstr "频率扫描"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "NoiseDist x Algorithm"
 msgstr "噪声分布 × 算法"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "SNR scan"
 msgstr "信噪比扫描"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "SNR x SampleCount"
 msgstr "信噪比 × 采样点数"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Window x Algorithm"
 msgstr "窗函数 × 算法"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Interference scan"
 msgstr "干扰扫描"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "SNR [dB]"
 msgstr "信噪比 [dB]"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Frequency [Hz]"
 msgstr "频率 [Hz]"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Delta [bins]"
 msgstr "频偏 [bins]"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Category"
 msgstr "类别"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "Value"
 msgstr "数值"
 
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
 msgid "All"
 msgstr "全部"

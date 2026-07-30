@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-24 12:54+0800\n"
+"POT-Creation-Date: 2026-07-30 23:29+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,22 +16,6 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\compute_time.cpp:14
-msgid "Compute Time"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\mse.cpp:25
-msgid "MSE"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\percentage_error.cpp:27
-msgid "Percentage Error"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\relative_efficiency.cpp:24
-msgid "Relative Efficiency"
-msgstr ""
 
 #: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\metrics\relative_efficiency.cpp:29
 msgid "N/A"
@@ -246,6 +230,31 @@ msgstr ""
 msgid "  (no peaks detected)"
 msgstr ""
 
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:67
+msgid "overview"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:104
+#, c-format
+msgid "Peak %d"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:125
+msgid "Scan Test Results"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:132
+msgid "No scan results — run scan tests first."
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:233
+msgid "min–max range"
+msgstr ""
+
+#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:242
+msgid "mean ± σ"
+msgstr ""
+
 #: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:14
 msgid "Single Simulation"
 msgstr ""
@@ -281,84 +290,4 @@ msgstr ""
 
 #: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\spectrum_panel.cpp:111
 msgid "Peaks"
-msgstr ""
-
-# --- 扫描测试结果面板（scan_results_panel.cpp，UI 线程 _UI 字面量）---------
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:97
-msgid "Scan Test Results"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:104
-msgid "No scan results — run scan tests first."
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:200
-msgid "min–max range"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:209
-msgid "mean ± σ"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp:66
-msgid "overview"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\ui\panels\scan_results_panel.cpp
-msgid "Peak %d"
-msgstr ""
-
-# --- 数据驱动的 msgid（定义于 scan_test_runner.cpp 的运行期数据，
-# 该文件运行于 worker 线程故不直接 _UI() 包裹；由 UI 线程经 _UI(var) 查询。
-# 注意：xgettext 无法自动提取，需手工维护；重生成 .pot 时须保留本组条目。）-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "SampleCount scan"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Frequency scan"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "NoiseDist x Algorithm"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "SNR scan"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "SNR x SampleCount"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Window x Algorithm"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Interference scan"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "SNR [dB]"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Frequency [Hz]"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Delta [bins]"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Category"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "Value"
-msgstr ""
-
-#: C:\Users\ralph\code\intelligent-signal-processing-practice-1\src\experiment\scan_test_runner.cpp
-msgid "All"
 msgstr ""

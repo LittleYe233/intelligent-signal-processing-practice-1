@@ -1,5 +1,4 @@
 #include "ispp/metrics/compute_time.h"
-#include "ispp/i18n.h"
 #include <format>
 #include <string>
 
@@ -11,7 +10,7 @@ double ComputeTimeMetric::evaluate(double true_frequency_hz,
     return result.ComputeTimeSec;
 }
 
-std::string_view ComputeTimeMetric::name() const { return _UI("Compute Time"); }
+std::string_view ComputeTimeMetric::name() const { return "Compute Time"; }
 
 std::string ComputeTimeMetric::format(double value) const {
     double scaled;

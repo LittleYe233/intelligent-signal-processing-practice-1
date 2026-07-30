@@ -5,13 +5,14 @@
 ## Project
 
 **ISPPracticeOne** — C++20 signal frequency estimation simulation framework (MSYS2 UCRT64).
-Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.8).
+Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.9).
 ## Current Status
 
-### Commits (pushed to `origin/main`; HEAD = `a065e9f`)
+### Commits (`origin/main` at `a065e9f`; local HEAD = `98d6e30`, NOT pushed)
 
 | Hash | Message |
 |---|---|
+| `98d6e30` | ✨ feat(scan): rework test specs, localize panel, and pad charts |
 | `a065e9f` | docs: add README and LICENSE |
 | `778af51` | ✨ feat(scan): add per-peak error visualization for interference scan |
 | `89a11e9` | 🐛 fix(ui): resolve LogPanel ring buffer OOB read causing SIGSEGV |
@@ -51,7 +52,7 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 | `982b5ec` | feat(test): add test_implot and set up clang tools |
 | `d41ec19` | feat: add test_fft and deps |
 
-All committed work is **pushed** to `origin/main` (branches in sync; the earlier "never git-push" instruction was superseded). `HEAD = a065e9f`. **This session's work (2026-07-30) is uncommitted** — see "Working tree" below.
+Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` (the scan-rework commit) is **local only — NOT pushed** (user: "never push"). The metric identity-key refactor (OQ-32) is **uncommitted** on top — see "Working tree" below.
 
 ### Milestone Progress
 
@@ -75,22 +76,23 @@ All committed work is **pushed** to `origin/main` (branches in sync; the earlier
   2. `RmseMetric` → `MseMetric`: files renamed; `format()` no sqrt; max-Prominence peak selection (OQ-19+21)
   3. `RelativeEfficiencyMetric` added but **disabled** — model assumptions don't match CRB conditions; code retained but not wired (OQ-20)
 - **Batch scan test architecture** (implemented, doc v1.6→v1.7 OQ-22~28) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (originally 23 charts). New `ScanResultsPanel` with resizable ImPlot windows. Test 7 (Interference scan) uses special `PerPeak` mode: extracts all detected peaks per X-point, sorts by error distance, plots each rank as a separate series. LogPanel ring buffer OOB fixed (`89a11e9`).
-- **Scan test rework + panel i18n + chart polish** (2026-07-30 session, **uncommitted**, doc v1.7→v1.8 OQ-29~31) — three changes:
+- **Scan test rework + panel i18n + chart polish** (2026-07-30, **committed `98d6e30`, not pushed**; doc v1.7→v1.8 OQ-29~31) — three changes:
   1. **Test spec rework (OQ-29)**: Tests 1/2/4 → Algorithm as *series* (4 lines) + MULTI_LINE (drop error bands); Test 1 keeps both metrics (2 charts), Tests 2/4 = 1 each; Test 4 drops `GenerateOverview`. Test 5 → `ChartDim=Algorithm{Interpolate,MUSIC,ESPRIT}` (3 charts; adds MUSIC/ESPRIT). Test 6 → `ChartDim=SNR{−3,10 dB}` (2 charts; adds 10 dB), and fixed X-axis algo set to Interpolate/MUSIC/ESPRIT. Tests 3/7 unchanged. **Total 23→14 charts.** Consequence: `LineWithErrorBands` (Style A) is now unreferenced by any test (dead render path, retained).
   2. **Full scan-panel i18n (OQ-30)**: `ChartResult` gained atomic title fields `TestName`/`ChartDimLabel`/`IsOverview`; `SeriesResult` gained `PeakRank`. Worker stores English msgids only (no `_UI()` in `scan_test_runner.cpp` beyond the pre-existing metric-matching line); UI thread localizes via `localizedTitle()` / `localizedSeriesLabel()` (`"Peak %d"` → snprintf → "峰 N") / `_UI()`. Tick-label arrays materialized into `std::vector<std::string>` first to dodge the dgettext static-buffer aliasing trap. 19 new msgids added to `ui.po`/`ui.pot` (zh_CN). **Lesson 21 corrected**: metric `name()` actually returns `_UI(...)` (localized) and IS called on the worker thread — the "preventive fix" described in old Lesson 21 was never applied to the metric classes.
   3. **Chart padding + width (OQ-31)**: `ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` around `render()` → 5% padding each side both axes (verified via `ApplyFit`: each side += `(range/2)×pad`); scoped to scan panel only. `plotSize()` narrows plot width by `fontSize×2.5` so the rightmost X label clears the child border. Removed the hardcoded grouped-bars `SetupAxisLimits(±0.6)`.
+- **Metric identity-key refactor — worker-thread gettext eliminated** (2026-07-30, **uncommitted**; doc v1.9 OQ-32) — `IMetric::name()` now returns the English msgid literal (no `_UI()`), making it the locale-independent identity key (gettext-canonical, DRY — `name()` *is* the id, no separate `id()` method). Scan matching → `name() == metric_name`; `experiment_runner` was already gettext-free; display layer's existing `_UI(name())` becomes a correct single translation. Result: **zero** `_UI`/`dgettext` on any worker thread; `src/metrics/` retains only `relative_efficiency::format()`'s `_UI("N/A")` (UI thread). Bonus: `name()`'s `string_view` now spans permanent literal storage, not gettext's static buffer. Implements the fix old Lesson 21 described but never actually applied.
 
 ### Working tree
 
-**HEAD** = `a065e9f`, **pushed** (`origin/main` in sync). Everything through `a065e9f` is committed; the older "Working tree" entries (`7c400f5` scan architecture, `89a11e9` LogPanel OOB, test-7 PerPeak) are all long since in HEAD.
+**HEAD** = `98d6e30` (local, **not pushed**; `origin/main` at `a065e9f`). The scan-rework + panel-i18n + chart-polish work (the former 5 staged files) is **committed as `98d6e30`** — see the "Scan test rework..." bullet under Milestone Progress. Submodules verified clean at commit time.
 
-**Uncommitted (staged), 2026-07-30 session** — scan test rework + panel i18n + chart polish (5 files; full detail in the "Scan test rework..." bullet under Milestone Progress):
-- `include/ispp/experiment/scan_test_runner.h` — `ChartResult` +atomic title fields (`TestName`/`ChartDimLabel`/`IsOverview`); `SeriesResult` +`PeakRank`.
-- `src/experiment/scan_test_runner.cpp` — tests 1/2/4/5/6 reworked; atomic title fields populated in all 3 chart-construction paths (normal/per-peak/overview); metric-matching line kept as `name() == _UI(metric_name)` (localized==localized).
-- `src/ui/panels/scan_results_panel.cpp` — full i18n (`_UI()` everywhere; helpers `localizedTitle`/`localizedSeriesLabel`/`makeLocalizedLabelPtrs`/`plotSize`); `FitPadding` push/pop; narrowed plot width; removed hardcoded grouped-bars X limits.
-- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — +19 msgids with zh_CN translations (**84 translated**, was 65).
-
-**Submodule**: `third_party/imgui` `imconfig.h` (`ImDrawIdx unsigned int`, 32-bit indices) — flagged in prior sessions as a local tweak; **verify `git submodule status` before any commit** of this session's work.
+**Uncommitted (2026-07-30, metric identity-key refactor, OQ-32)** — `IMetric::name()` now returns the English msgid (no `_UI()`); worker-thread gettext fully eliminated:
+- `include/ispp/metrics/metric.h` — `name()` doc updated (English identity key; must not call `_UI`).
+- `src/metrics/{compute_time,mse,percentage_error}.cpp` — `name()` returns English literal; dropped `i18n.h` include.
+- `src/metrics/relative_efficiency.cpp` — `name()` returns English literal; `i18n.h` kept (`format()` still `_UI("N/A")`).
+- `src/experiment/scan_test_runner.cpp` — matching → `name() == metric_name`; dropped `i18n.h` include.
+- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — note added: 4 metric-name msgids are now hand-maintained identity keys.
+- `.opencode/context/development_solution.md` (v1.9, OQ-32) + `progress.md` — this update.
 
 ### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
@@ -502,6 +504,8 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 **Resolution (as written 2026-07)**: `name()` returns a stable English msgid literal (no `_UI()`). The UI display layer translates on the main thread via `_UI(metric->name().data())`. The worker thread compares against English msgids directly — zero `dgettext` calls off the main thread. (This fix was applied during debugging and kept as a preventive measure.)
 
 > ⚠️ **CORRECTION (2026-07-30, verified against code)**: The above Resolution was **never actually applied to the metric classes**. All four `IMetric::name()` implementations still `return _UI(...)` (localized) — `compute_time.cpp:14`, `percentage_error.cpp:27`, `mse.cpp:25`, `relative_efficiency.cpp:24`. So `name()` IS called on the worker thread (during scan metric matching) and DOES call `dgettext`. This is a pre-existing, accepted-in-practice hazard (no crash observed; the real Lesson-20 crash was the ring buffer). Consequence: scan metric matching MUST compare localized==localized (`name() == _UI(metric_name)`) to stay locale-independent — see Lesson 22. Fully removing worker-thread gettext requires giving metrics a locale-independent `id()` (separate task).
+>
+> ✅ **RESOLVED (2026-07-30, OQ-32)**: The Resolution is now applied for real — all four `IMetric::name()` return the English literal (no `_UI()`); scan matching uses `name() == metric_name`; worker-thread gettext is fully eliminated. Approach: `name()` itself is the locale-independent identity key (gettext-canonical, DRY — single source of truth) rather than a separate `id()` method; the display layer's existing `_UI(name())` call becomes a correct single translation. Bonus: `name()`'s `string_view` now points at permanent literal storage instead of gettext's static buffer.
 
 **Lesson**: Any function callable from a background thread must NEVER call `dgettext`/`gettext`/`_UI()`. i18n is a display-only concern — do it on the UI thread at render time. Stable English msgids serve as locale-independent comparison keys. *(Caveat — see the correction above + Lesson 22: in this codebase the metric classes still violate this and it's accepted in practice. Verify reality, don't trust this file blindly.)*
 

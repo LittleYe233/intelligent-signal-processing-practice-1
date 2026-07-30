@@ -21,7 +21,7 @@ double RelativeEfficiencyMetric::evaluate(double true_frequency_hz,
 }
 
 std::string_view RelativeEfficiencyMetric::name() const {
-    return _UI("Relative Efficiency");
+    return "Relative Efficiency";
 }
 
 std::string RelativeEfficiencyMetric::format(double value) const {

@@ -28,7 +28,10 @@ public:
     virtual double evaluate(double true_frequency_hz,
                             const EstimationResult &result) = 0;
 
-    /// 返回指标名称（用于结果显示）。
+    /// 返回指标的英语 msgid 字面量——既是 locale 无关的身份键（供 worker 线程
+    /// 比较匹配），也是 gettext 翻译键。结果显示层在 UI 线程经 `_UI(name())`
+    /// 本地化。**不得**在此调用 `_UI()`/`dgettext()`（本方法会被 worker
+    /// 线程调用）。
     virtual std::string_view name() const = 0;
 
     /// 将统计值格式化为人类可读字符串（决策记录 OQ-13）。

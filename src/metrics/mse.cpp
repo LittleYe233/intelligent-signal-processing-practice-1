@@ -1,5 +1,4 @@
 #include "ispp/metrics/mse.h"
-#include "ispp/i18n.h"
 #include <algorithm>
 #include <cmath>
 #include <format>
@@ -22,7 +21,7 @@ double MseMetric::evaluate(double true_frequency_hz,
     return ERROR * ERROR;
 }
 
-std::string_view MseMetric::name() const { return _UI("MSE"); }
+std::string_view MseMetric::name() const { return "MSE"; }
 
 std::string MseMetric::format(double value) const {
     return std::format("{:.6e}", value);

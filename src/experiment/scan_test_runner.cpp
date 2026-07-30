@@ -4,7 +4,6 @@
 #include "ispp/estimator/fft_peak.h"
 #include "ispp/estimator/music.h"
 #include "ispp/experiment/experiment_runner.h"
-#include "ispp/i18n.h"
 #include "ispp/metrics/compute_time.h"
 #include "ispp/metrics/mse.h"
 #include "ispp/metrics/percentage_error.h"
@@ -728,13 +727,10 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
 
                         bool found = false;
                         for (const auto &mr : result.Metrics) {
-                            // 两侧均经 _UI()：metric::name() 现状即在 worker
-                            // 线程 经 _UI 返回本地化名，故这里同样本地化以实现
-                            // locale 无关的恒等匹配。(彻底去除 worker 线程
-                            // gettext 需重构 metric
-                            // 类，属独立任务；本改动不新增 worker 线程 _UI。)
-                            if (mr.MetricObj->name() ==
-                                _UI(metric_name.c_str())) {
+                            // metric::name() 现返回英语 msgid（locale
+                            // 无关的身份键）， 故直接与英语 metric_name
+                            // 比较——worker 线程零 gettext。
+                            if (mr.MetricObj->name() == metric_name) {
                                 series.Means.push_back(mr.Stats.Mean);
                                 if (mr.MetricObj->showDistribution()) {
                                     series.Stds.push_back(mr.Stats.Std);
