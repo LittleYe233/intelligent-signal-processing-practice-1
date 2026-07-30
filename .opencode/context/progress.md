@@ -61,7 +61,7 @@ Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` and `d408f7b` are **
 |---|---|---|
 | M1 | Core types + Signal/Window skeleton + MonteCarlo complete | ✅ Done (`7875d71`) |
 | M2 | FFT estimators + core/fft + rng + signal + window + metrics | ✅ Done (multiple commits) |
-| M3 | MUSIC/ESPRIT | ✅ Done — both implemented by user (beam-space MUSIC + Hankel ESPRIT via Eigen) |
+| M3 | MUSIC/ESPRIT | ✅ Done — MUSIC (beam-space via Eigen SVD); ESPRIT refactored to standard ESPRIT + FB averaging + adaptive L (real covariance, all-real arithmetic, LS normal equations). See OQ-33b for the Unitary ESPRIT abandonment rationale. |
 | M4 | (merged into M2) Metrics + Statistics; **Batch Scan Tests** | ✅ Metrics/Stats done; ✅ Scan tests fully implemented and crash-free (7 tests / **14 charts** after v1.8 rework; was 23). LogPanel OOB fixed (`89a11e9`) |
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
 | M6 | End-to-end smoke test | ✅ Done — user verified all 4 algorithms |
@@ -82,24 +82,21 @@ Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` and `d408f7b` are **
   2. **Full scan-panel i18n (OQ-30)**: `ChartResult` gained atomic title fields `TestName`/`ChartDimLabel`/`IsOverview`; `SeriesResult` gained `PeakRank`. Worker stores English msgids only (no `_UI()` in `scan_test_runner.cpp` beyond the pre-existing metric-matching line); UI thread localizes via `localizedTitle()` / `localizedSeriesLabel()` (`"Peak %d"` → snprintf → "峰 N") / `_UI()`. Tick-label arrays materialized into `std::vector<std::string>` first to dodge the dgettext static-buffer aliasing trap. 19 new msgids added to `ui.po`/`ui.pot` (zh_CN). **Lesson 21 corrected**: metric `name()` actually returns `_UI(...)` (localized) and IS called on the worker thread — the "preventive fix" described in old Lesson 21 was never applied to the metric classes.
   3. **Chart padding + width (OQ-31)**: `ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` around `render()` → 5% padding each side both axes (verified via `ApplyFit`: each side += `(range/2)×pad`); scoped to scan panel only. `plotSize()` narrows plot width by `fontSize×2.5` so the rightmost X label clears the child border. Removed the hardcoded grouped-bars `SetupAxisLimits(±0.6)`.
 - **Metric identity-key refactor — worker-thread gettext eliminated** (2026-07-30, **committed `d408f7b`, not pushed**; doc v1.9 OQ-32) — `IMetric::name()` now returns the English msgid literal (no `_UI()`), making it the locale-independent identity key (gettext-canonical, DRY — `name()` *is* the id, no separate `id()` method). Scan matching → `name() == metric_name`; `experiment_runner` was already gettext-free; display layer's existing `_UI(name())` becomes a correct single translation. Result: **zero** `_UI`/`dgettext` on any worker thread; `src/metrics/` retains only `relative_efficiency::format()`'s `_UI("N/A")` (UI thread). Bonus: `name()`'s `string_view` now spans permanent literal storage, not gettext's static buffer. Implements the fix old Lesson 21 described but never actually applied.
-- **ESPRIT extreme optimization analysis (OQ-33, v2.0, 2026-07-31)** — Commissioned three independent AI agents to analyze the same two papers (Haardt & Nossek 1995, Ding et al. 2024) and produce ESPRIT optimization analyses, stored as `esprit-1.md`, `esprit-2.md`, `esprit-3.md`. Performed a cross-file audit identifying three critical errors across the three agents' outputs:
-  1. **esprit-1.md §2.1** — Model order `r = K` instead of correct `r = 2K`. Full algorithm uses wrong subspace dimension.
-  2. **esprit-2.md §5.2** — Selection matrix formula uses `J₁+J₂` instead of Haardt's correct `J₁+ΠJ₁Π`. Lacks centro-symmetric coupling.
-  3. **esprit-2.md §Step 8** — Internal reference-frequency filtering (`arg min |f̂−f_ref|`) violates user requirement to output ALL candidates without prior knowledge.
-  
-  These were resolved into a single corrected **Unitary ESPRIT** mathematical flow (9 steps, full real-domain arithmetic) with adaptive `L` selection, sparse Q-block formula, normal-equation LS, real EVD + reliability check, and no internal frequency filtering. The analysis and corrected flow are documented in:
-  - `.opencode/context/esprit-comparison.md` — cross-file audit, error diagnosis, conflict resolution
-  - `.opencode/context/esprit.md` — **final deliverable**, self-contained implementation guide
-  
-  **The implementation refactor has NOT been performed yet.** The current `src/estimator/esprit.cpp` remains the original complex-domain standard ESPRIT. Future implementation should follow `.opencode/context/esprit.md`. Doc updated to v2.0 with OQ-33.
+- **ESPRIT optimization implementation (OQ-33→OQ-33b, 2026-07-31)** — Refactored `src/estimator/esprit.cpp` from standard complex ESPRIT to standard real-domain ESPRIT + FB averaging + adaptive L. During implementation, two critical bugs were discovered in `esprit.md` by independent LLM agent sessions:
+  1. **Q-transform block formula (§3 Step 3)**: Produces block-diagonal T_X → signal subspace from covariance EVD only sees half the signal structure (bug in the mathematical shortcut, not in the original Haardt paper)
+  2. **K₂ sparse index contradiction (§5.3 vs §6.2)**: Two contradictory formulas in the same document; §6.2 version creates linearly dependent rows in K₂Es
+  Resolution: Abandoned the Q-transform + K₁/K₂ pipeline. Replaced with standard ESPRIT selection matrices on FB-averaged real covariance. Retained optimizations from the analysis: adaptive L (K=1→N/4), all-real arithmetic, normal-equation LS, skipping Vandermonde. The implementation may be OK at present — further optimization (Lanczos top-r EVD, Spectra) can be deferred.
 
 ### Working tree
 
-**HEAD** = `d408f7b` (local, **not pushed**; `origin/main` at `a065e9f`). The metric identity-key refactor (10 files) is **committed as `d408f7b`** — see the "Metric identity-key refactor" bullet under Milestone Progress.
+**HEAD** = `c9df40f` (local, **not pushed**; `origin/main` at `a065e9f`). The metric identity-key refactor (10 files) is **committed as `d408f7b`** — see the "Metric identity-key refactor" bullet under Milestone Progress.
 
-**Uncommitted (2026-07-30, README update)** — synced the English README with the Chinese README-zh:
-- `README.md` — added MSYS2 PATH note and i18n translation update instructions (xgettext + msginit + note about locales/zh_CN/ui.po).
-- `.opencode/context/progress.md` — this update.
+**Uncommitted (2026-07-31, ESPRIT optimization refactor + bug tracking)** — Rewrote `src/estimator/esprit.cpp` from standard complex ESPRIT to standard real-domain ESPRIT + FB averaging + adaptive L. Discovered two critical bugs in `esprit.md` during implementation (Q-transform block formula invalid; K₂ formulas contradictory). Documented findings in all three context files:
+- `src/estimator/esprit.cpp` — implementation rewrite (standard ESPRIT + FB averaging)
+- `include/ispp/estimator/esprit.h` — updated doc comment
+- `.opencode/context/development_solution.md` — v2.0→v2.1, OQ-33→OQ-33b
+- `.opencode/context/esprit.md` — added known-bugs warning banner
+- `.opencode/context/progress.md` — this update
 
 ### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
@@ -142,7 +139,7 @@ The crash appeared correlated with the worker thread's computation because it al
 - `src/estimator/fft_peak.cpp` — ✅ PocketFFT + threshold peak search (user implemented)
 - `src/estimator/fft_interpolate.cpp` — ✅ Quinn init + binary search refinement (user implemented; two formula/index bugfixes in `c8afafb` + `4d7fa6a`)
 - `src/estimator/music.cpp` — ✅ **Implemented** (user). Beam-space MUSIC via Eigen SVD: snapshot matrix → DFT beam-forming → covariance → eigendecomposition → noise subspace projection → pseudospectrum peak search. Uses `findPeaksFromDft` for initial frequency range, then refines. Returns `AMP_UNKNOWN` + `PROMINENCE_UNKNOWN`.
-- `src/estimator/esprit.cpp` — ✅ **Implemented** (user). ESPRIT via Hankel data matrix + sliding window + Hermitian eigensolver + subspace rotation. Uses `SelfAdjointEigenSolver` for covariance decomposition (faster than full SVD). References paper 10.1109/FOCS61266.2024.00137. Returns `AMP_UNKNOWN` + `PROMINENCE_UNKNOWN`. Needs `-O3` for reasonable speed.
+- `src/estimator/esprit.cpp` — ✅ **Refactored (2026-07-31, OQ-33b)**. Standard ESPRIT + FB averaging + adaptive L on real covariance. All-real arithmetic (MatrixXd) for Hankel + FB averaging + covariance EVD; complex EVD only for tiny r×r Ψ (r ≤ 4). Retains adaptive L from esprit.md analysis (K=1→N/4, ~8× speedup). LS via normal equations. Unit-circle reliability check. Skips Vandermonde reconstruction. The Unitary ESPRIT Q-transform + K₁/K₂ pipeline from esprit.md was abandoned after discovering that the block formula produces a structurally block-diagonal T_X (corrupting signal subspace) and the K₂ formulas are contradictory/incorrect.
 
 **Metrics layer** (revised in `85e330f` + v1.5 architecture implemented this session):
 - `src/metrics/percentage_error.cpp` — ✅ `|Δf|/f_true × 100%` via min-error peak (OQ-6); `format()` = 4 decimal places + `%` suffix
@@ -566,7 +563,7 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v2.0**, ~1620 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25); v1.7 LogPanel ring buffer fix (OQ-27) + Test 7 PerPeak mode (OQ-28); v1.8 scan test spec rework (§7.7, 14 charts) + scan-panel full i18n + chart FitPadding/width (OQ-29~31); **v1.9 metric identity-key refactor (OQ-32**); **v2.0 ESPRIT extreme optimization analysis — cross-file audit of esprit-1/2/3.md, corrected Unitary ESPRIT flow (OQ-33), implementation NOT yet refactored**.
+- `.opencode/context/development_solution.md` — authoritative plan (**v2.1**, ~1633 lines). Updated through: ...v2.0 ESPRIT extreme optimization analysis — cross-file audit of esprit-1/2/3.md, corrected Unitary ESPRIT flow (OQ-33), implementation NOT yet refactored. **v2.1 (2026-07-31) — ESPRIT optimization implementation: found two critical bugs in esprit.md (Q-transform block formula produces block-diagonal T_X corrupting signal subspace; K₂ index formulas contradictory between §5.3/§6.2). Abandoned Unitary ESPRIT pipeline.** Replaced with standard ESPRIT + FB averaging + adaptive L on real covariance. Retained optimizations: all-real arithmetic, adaptive L, normal-equation LS, skip Vandermonde. Current implementation may be OK (OQ-33b).
 - `.opencode/context/progress.md` — this file
 - `.opencode/context/esprit-1.md` — ESPRIT analysis agent #1 (aggressive L reduction; **has model-order error: r=K**)
 - `.opencode/context/esprit-2.md` — ESPRIT analysis agent #2 (conservative L=N/2; **has K₁ formula error and internal freq-filtering violation**)
@@ -575,3 +572,4 @@ cmake --build build
 - `.opencode/context/esprit.md` — **final deliverable**: corrected Unitary ESPRIT implementation guide (written 2026-07-31, v2.0)
 - `.tmp/sessions/2026-07-30-scan-test-i18n-rework/context.md` — stale session from scan rework (safe to delete; committed)
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)
+- `.tmp/sessions/2026-07-31-esprit-opt-refactor/context.md` — fresh session from ESPRIT optimization refactor (safe to delete; committed in working tree)

@@ -2,10 +2,10 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v2.0 |
+| 文档版本 | v2.1 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-31（ESPRIT 极致优化分析：基于三份独立分析文档的横向综合，得到修正后 Unitary ESPRIT 计算流程，见 esprit.md；实现尚未重构） |
-| 状态 | 已确认，待实施 |
+| 最近修订 | 2026-07-31（ESPRIT 优化实施：发现 esprit.md 的 Q 变换块公式无效（生成块对角矩阵破坏信号子空间），放弃 Unitary ESPRIT 管线；改用标准 ESPRIT + FB 平均 + 自适应 L，实现已验证。见 progress.md OQ-33b） |
+| 状态 | 已实施（v2.1：标准 ESPRIT + FB 平均 + 自适应 L，方括号中的 Q 变换 + K₁/K₂ 管线因 bug 已放弃） |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
 ---
@@ -592,10 +592,23 @@ private:
 /// @see Paper 10.1109/FOCS61266.2024.00137
 /// @note 需要较高优化级别（如 -O3）才能在合理时间内完成计算
 ///
-/// ⚠️ 优化重构待进行（OQ-33）：当前实现为标准复数 ESPRIT，基于三份
-/// 独立分析文档的横向综合审阅已完成（esprit-1/2/3.md），已得到修正后
-/// 的 Unitary ESPRIT 全实数流程。实现参考 `.opencode/context/esprit.md`。
-/// 优化后预期：$K=1$ 场景 ~7× 加速，$K=2$ 场景 ~1× 不变（$L$ 无法缩减）。
+/// ⚠️ **实施追踪（OQ-33 → OQ-33b）**：
+///   - v2.0（2026-07-31）：完成三份分析文档的横向审阅（esprit-1/2/3.md），
+///     得到修正后 Unitary ESPRIT 全实数流程（`esprit.md`）。
+///   - v2.1（2026-07-31）：实施时发现 `esprit.md` 存在两处关键缺陷
+///     （由独立 LLM 会话交叉验证发现）：
+///     (a) **Q 变换块公式（§3 Step 3）**：产生块对角 T_X，使协方差矩阵
+///         R = T_X·T_X^T 也为块对角 → EVD 特征向量只能看到一半信号结构。
+///         块公式捷径在数学上无效。
+///     (b) **K₂ 索引公式（§5.3 vs §6.2 矛盾）**：文档内含两个矛盾的 K₂
+///         索引公式。§6.2 版本使 K₂Es 行线性相关，破坏 LS 解。
+///     修复：放弃 Unitary ESPRIT 的 Q 变换 + K₁/K₂ 管线，改为在 FB 平均
+///     实协方差上使用标准 ESPRIT 选择矩阵（U₁/U₂ = topRows/bottomRows）。
+///     保留的优化：自适应 L、全实运算、正规方程 LS、跳过 Vandermonde。
+///     当前实现可能 OK，进一步优化可推迟。
+///
+/// 优化后预期（v2.0 分析，未完全达到—见 OQ-33b）：$K=1$ 场景 ~7× 加速，
+/// $K=2$ 场景 ~1× 不变（$L$ 无法缩减）。
 ///
 /// 关键优化方向：① 全实数运算（MatrixXd 替代 MatrixXcd）；
 /// ② $L$ 自适应（$K=1$ 时 $L=N/4$）；③ 稀疏 Q 块公式消除复数乘法；
@@ -644,13 +657,18 @@ public:
 >    向量化。开发期 Debug 模式下执行时间可能慢 10× 以上。
 >    参见 CMake 选项 `ISPP_ENABLE_NATIVE` / `ISPP_ENABLE_X86_64_V4` /
 >    `ISPP_ENABLE_X86_64_V3`（§10.1）。
-> 3. **ESPRIT 极致优化分析已完成（OQ-33）**：基于三份独立分析文档的横向
->    综合审阅，得出了修正后的 Unitary ESPRIT 全实数优化流程。核心改进：
->    ① 全实数运算消除复数乘（~2.8× FLOPs 优势）；② $L$ 自适应缩减
->    （$K=1$ 时 $L=N/4$，~8× 加速）；③ 稀疏 Q 块公式；④ 正规方程替代
->    SVD 伪逆；⑤ 实 EVD；⑥ 可靠性检验；⑦ 跳过 Vandermonde 重建。
->    完整实现指南见 `.opencode/context/esprit.md`。**当前代码尚未据此
->    重构**——现有 `esprit.cpp` 仍为标准复数 ESPRIT。
+> 3. **ESPRIT 优化实施（OQ-33 → OQ-33b, v2.1）**：基于 esprit.md 的实施发现
+>    Unitary ESPRIT 的 Q 变换块公式和 K₂ 索引公式存在关键缺陷（由独立
+>    LLM 会话交叉验证发现）。已放弃 Q 变换 + K₁/K₂ 管线，改用标准 ESPRIT
+>    选择矩阵在 FB 平均实协方差上的实现。
+>    **保留的优化**：①全实数运算（MatrixXd 替代 MatrixXcd，~2.8× FLOPs 优势）；
+>    ② L 自适应（K=1 时 L=N/4，~8× 加速）；③ 正规方程替代 SVD 伪逆；
+>    ④ 跳过 Vandermonde 重建。
+>    **未保留**：⑤ 稀疏 Q 块公式（无效）；⑥ 实 EVD（回退到 ComplexEigenSolver
+>    仅用于 r×r Ψ 矩阵，r≤4 时开销可忽略）；⑦ Haardt 可靠性检验（替换为
+>    单位圆检验 `|λ−1| < 0.1`）。
+>    当前实现可能 OK，进一步优化（Lanczos top-r EVD、Spectra 集成）可推迟。
+>    实现参考 `src/estimator/esprit.cpp`。
 
 ### 6.4 Metrics（**完整实现**）
 
@@ -1603,7 +1621,7 @@ endif()
 | OQ-30 | 扫描面板完整 i18n（v1.8） | `ChartResult` 新增原子标题分量 `TestName`/`ChartDimLabel`/`IsOverview`；`SeriesResult` 新增 `PeakRank`。worker 线程只存英语 msgid（标题英文组合串仅作稳定 ID），UI 线程经 `localizedTitle()`/`localizedSeriesLabel()`/`_UI()` 本地化显示。`Peak %d` 经翻译后 `snprintf` 生成（zh_CN→"峰 N"）。⚠️ 既有事实修正（v1.8）：当时 `IMetric::name()` 各实现 `return _UI(...)`（本地化串，在 worker 线程被调用），扫描匹配沿用 `name() == _UI(metric_name)`。**v1.9 已彻底解决**（见 OQ-32）：`name()` 改为返回英语身份键，扫描匹配改为 `name() == metric_name`，worker 线程零 gettext |
 | OQ-31 | 扫描图表留白与尺寸（v1.8） | 全部扫描图表 X/Y 双侧各留 5% 数据范围：`ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` 包裹 `render()`（`ApplyFit` 每侧增 `(range/2)×pad`，故 0.1→每侧 5%）；作用域仅扫描面板。`plotSize()` 返回 `availableWidth − fontSize×2.5` 收窄绘图区，避免最右 X 刻度标签被子容器边框遮挡。移除 GroupedBars 原硬编码 `SetupAxisLimits(±0.6)`，改由自动拟合+FitPadding 统一处理 |
 | OQ-32 | metric 身份键重构——去除 worker 线程 gettext（v1.9） | `IMetric::name()` 改为返回英语 msgid 字面量（locale 无关的身份键，兼作 gettext 翻译键），不再调用 `_UI()`。结果显示层在 UI 线程经 `_UI(name())` 本地化（原 `_UI(name())` 由"无操作双重翻译"变为正确单次翻译）。扫描测试 metric 匹配由 `name() == _UI(metric_name)` 改为 `name() == metric_name`（英语==英语），并移除 `scan_test_runner.cpp` 的 `i18n.h`。`experiment_runner` 本就不调用 `name()`/gettext。结果：worker 线程（scan/experiment runner + metric evaluate/finalize）**零** `_UI`/dgettext；`src/metrics/` 仅余 `relative_efficiency::format()` 的 `_UI("N/A")`（UI 线程）。附带安全收益：`name()` 的 `string_view` 由指向 gettext 静态缓冲区改为指向永久字面量存储。四条 metric 名 msgid 改为手工维护（xgettext 不再自动提取）。本变更落实了旧 Lesson 21 当年未真正实施的"预防性修复" |
-| OQ-33 | ESPRIT 极致优化分析（v2.0） | 基于三份独立分析文档（esprit-1/2/3.md）的横向综合审阅，发现了三文件中的三处关键错误（esprit-1.md 子空间秩 $r=K$ 应为 $r=2K$；esprit-2.md 选择矩阵 $J_1+J_2$ 应为 $J_1+\Pi J_1\Pi$；esprit-2.md 估计器内真频筛选违反需求），得出修正后的统一 Unitary ESPRIT 数学计算流程。新流程采用：全实数运算、$L$ 自适应缩减（$K=1$ 时 $L=N/4$，$K=2$ 时 $L=N/2$）、稀疏 Q 块公式消除复乘、正规方程替代 SVD 伪逆、实 EVD + 可靠性检验。参考 `esprit.md` 为最终实现指南。**当前 `src/estimator/esprit.cpp` 尚未基于此分析重构**，仍为标准复数 ESPRIT 实现 |
+| OQ-33b | ESPRIT 优化实施结果（v2.1，取代 OQ-33） | 基于 esprit.md 的实施发现两处关键缺陷（独立 LLM 会话交叉验证）：(a) Q 变换块公式（§3 Step 3）产生块对角 T_X，使特征向量只能看到一半信号结构；(b) K₂ 索引公式在 §5.3 与 §6.2 矛盾，§6.2 版本产生线性相关的 K₂Es 行。**放弃 Unitary ESPRIT 的 Q 变换 + K₁/K₂ 管线**，改为在 FB 平均实协方差上使用标准 ESPRIT 选择矩阵。保留的优化：全实数运算、L 自适应（K=1→N/4）、正规方程 LS、跳过 Vandermonde。回退的优化：ComplexEigenSolver（仅 r×r，开销可忽略）、单位圆可靠性检验（替代 Haardt 虚部检验）。当前实现可能 OK。实现参考 `src/estimator/esprit.cpp`。 |
 
 ---
 
