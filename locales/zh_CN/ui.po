@@ -300,6 +300,9 @@ msgstr "计算时间"
 msgid "Percentage Error"
 msgstr "百分比误差"
 
+msgid "MSE"
+msgstr "均方误差"
+
 msgid "SampleCount scan"
 msgstr "采样点数扫描"
 
@@ -338,3 +341,6 @@ msgstr "数值"
 
 msgid "All"
 msgstr "全部"
+
+msgid "Compute Time Ratio"
+msgstr "计算时间比"

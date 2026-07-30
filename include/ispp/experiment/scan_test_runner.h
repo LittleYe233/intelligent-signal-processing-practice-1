@@ -69,6 +69,26 @@ struct ScanDimension {
 };
 
 // ---------------------------------------------------------------------------
+// 7.5.4 Custom evaluator — replaces the standard "run + extract metric" step
+// ---------------------------------------------------------------------------
+
+/// Custom evaluator that replaces the standard ExperimentRunner →
+/// metric-extraction pipeline for a single scan point.
+///
+/// Receives the fully-built ExperimentConfig (may be modified), the
+/// resolved IEstimator, and the list of metric names to produce values for.
+/// Returns exactly MetricNames.size() values in the same order.
+///
+/// The standard chart-building loop handles everything else (chart
+/// creation, title assembly, progress reporting).
+///
+/// Usage: set ScanTestDef::CustomEval and populate MetricNames;
+/// a 100-line special-case scope collapses to a ~15-line lambda.
+using CustomEvaluator = std::function<std::vector<double>(
+    ExperimentConfig config, const std::shared_ptr<IEstimator> &estimator,
+    const std::vector<std::string> &metric_names)>;
+
+// ---------------------------------------------------------------------------
 // 7.5.4 测试规格
 // ---------------------------------------------------------------------------
 struct ScanTestDef {
@@ -94,6 +114,10 @@ struct ScanTestDef {
     // 每个 X 点运行 MC=1（确定性），将 LastPeaks 按距真频误差排序，
     // 每个排位画一条折线（MULTI_LINE）。
     bool PerPeak = false;
+
+    // 若已设置，替代标准 ExperimentRunner + metric 提取流水线。
+    // 典型用途：ComputeTimeRatio（需两次实验取比值）等自定义逻辑。
+    CustomEvaluator CustomEval;
 };
 
 // ---------------------------------------------------------------------------
@@ -163,6 +187,13 @@ private:
 
     /// 构建全量活跃指标列表（当前为 PercentageError + MSE + ComputeTime）。
     static std::vector<std::shared_ptr<IMetric>> buildAllMetrics();
+
+    /// 运行单个 per-peak 测试并返回其输出。
+    /// @see ScanTestDef::PerPeak
+    ScanTestOutput runPerPeakTest(const ScanTestDef &test,
+                                  std::size_t &completed,
+                                  std::size_t total_points,
+                                  const ProgressCallback &on_progress);
 
     std::atomic<bool> Cancelled{false};
 };

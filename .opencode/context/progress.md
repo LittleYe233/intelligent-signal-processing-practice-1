@@ -8,52 +8,21 @@
 Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.9).
 ## Current Status
 
-### Commits (`origin/main` at `a065e9f`; local HEAD = `d408f7b`, NOT pushed)
+### Commits (`origin/main` at `a065e9f`; local HEAD = `a0ac064`, NOT pushed — 7 commits ahead)
 
 | Hash | Message |
 |---|---|
+| `a0ac064` | ♻️ refactor(scan): replace ad-hoc special-case scopes with CustomEvaluator + shared helpers |
+| `d61c75c` | ♻️ refactor: implement standard ESPRIT with FB averaging and adaptive L |
+| `c9df40f` | 📝 docs: add ESPRIT optimization analysis and corrected Unitary ESPRIT flow |
+| `49e32e9` | docs: update README and progress |
 | `d408f7b` | ♻️ refactor(metrics): make name() a locale-independent identity key |
 | `98d6e30` | ✨ feat(scan): rework test specs, localize panel, and pad charts |
-| `a065e9f` | docs: add README and LICENSE |
+| `a065e9f` | docs: add README and LICENSE (origin/main) |
 | `778af51` | ✨ feat(scan): add per-peak error visualization for interference scan |
 | `89a11e9` | 🐛 fix(ui): resolve LogPanel ring buffer OOB read causing SIGSEGV |
 | `7c400f5` | ✨ feat(scan): implement batch scan test runner and results panel |
-| `4213ba0` | ✨ feat(estimator): implement ESPRIT algorithm via Hankel matrix |
-| `cf67ad0` | ✨ feat(estimator): implement beam-space MUSIC algorithm |
-| `eb91c76` | fix(deps): fix Eigen dep in CMakeLists.txt |
-| `568de70` | 🔥 fix(metrics): disable RelativeEfficiency metric in Runner and UI |
-| `b6c7efc` | ✨ feat(metrics): add Prominence, MSE, and relative efficiency |
-| `f9f800d` | ♻️ refactor(signal): remove amplitude parameter, fix to 1.0 |
-| `ad94f78` | 🐛 fix(ui): auto-refit spectrum axes on new experiment data |
-| `a73421b` | fix(ui): fix double shutdown() error |
-| `85e330f` | ✨ feat(metrics): revise metric display with per-metric formatting and correct RMSE |
-| `f422992` | ✨ feat(i18n): wrap UI strings in _UI() and add zh_CN translation |
-| `de01c29` | feat(i18n): add GNU gettext dep and i18n support |
-| `3622839` | build(cmake): link all deps statically |
-| `297f5c5` | chore(context): save progress |
-| `05d18bb` | build(cmake): refine build options |
-| `388e990` | ♻️ refactor(core): extract peak-finding into reusable PeakFinder utility |
-| `4d7fa6a` | fix(fft_interpolate): fix formula error |
-| `c8afafb` | fix(fft_interpolate): fix vector index selection error |
-| `90d3faa` | chore(context): rename development_plan to development_solution |
-| `bf920b2` | ✨ feat(ui): implement complete M5 UI layer with panels and exception handling |
-| `0b3184c` | ✨ feat(metrics): implement three evaluation metrics |
-| `7cf531b` | ✨ feat(window): implement four standard window functions |
-| `f146d7a` | ✨ feat(signal): implement signal generation pipeline |
-| `1cf2961` | ✨ feat(core): implement RNG distribution samplers |
-| `581cffd` | ✨ feat(estimator): implement FFT interpolation estimator |
-| `634d9ad` | 🏗️ refactor: consolidate estimator signal context into EstimationContext |
-| `41d07d0` | 🏗️ refactor: extract core/fft utilities and add WindowKind to estimator interface |
-| `6c36be8` | ✨ feat(estimator): add M2 FFT estimators with tightened estimate() interface |
-| `7875d71` | ✨ feat(framework): add M1 skeleton with complete MonteCarlo runner |
-| `e2a8ab9` | chore(clang-tidy): refine .clang-tidy |
-| `1293107` | build(deps): add library Eigen |
-| `be7fb28` | chore(agent): add AGENTS.md and development_plan.md |
-| `fa95d3c` | feat(test): add peak search to test_fft |
-| `982b5ec` | feat(test): add test_implot and set up clang tools |
-| `d41ec19` | feat: add test_fft and deps |
-
-Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` and `d408f7b` are **local only — NOT pushed** (user: "never push"). The README.md update is **uncommitted** on top — see "Working tree" below.
+| ... | (complete log up to initial commit `d41ec19` — unchanged from prior state) |
 
 ### Milestone Progress
 
@@ -86,17 +55,7 @@ Through `a065e9f` is **pushed** to `origin/main`. `98d6e30` and `d408f7b` are **
   1. **Q-transform block formula (§3 Step 3)**: Produces block-diagonal T_X → signal subspace from covariance EVD only sees half the signal structure (bug in the mathematical shortcut, not in the original Haardt paper)
   2. **K₂ sparse index contradiction (§5.3 vs §6.2)**: Two contradictory formulas in the same document; §6.2 version creates linearly dependent rows in K₂Es
   Resolution: Abandoned the Q-transform + K₁/K₂ pipeline. Replaced with standard ESPRIT selection matrices on FB-averaged real covariance. Retained optimizations from the analysis: adaptive L (K=1→N/4), all-real arithmetic, normal-equation LS, skipping Vandermonde. The implementation may be OK at present — further optimization (Lanczos top-r EVD, Spectra) can be deferred.
-
-### Working tree
-
-**HEAD** = `c9df40f` (local, **not pushed**; `origin/main` at `a065e9f`). The metric identity-key refactor (10 files) is **committed as `d408f7b`** — see the "Metric identity-key refactor" bullet under Milestone Progress.
-
-**Uncommitted (2026-07-31, ESPRIT optimization refactor + bug tracking)** — Rewrote `src/estimator/esprit.cpp` from standard complex ESPRIT to standard real-domain ESPRIT + FB averaging + adaptive L. Discovered two critical bugs in `esprit.md` during implementation (Q-transform block formula invalid; K₂ formulas contradictory). Documented findings in all three context files:
-- `src/estimator/esprit.cpp` — implementation rewrite (standard ESPRIT + FB averaging)
-- `include/ispp/estimator/esprit.h` — updated doc comment
-- `.opencode/context/development_solution.md` — v2.0→v2.1, OQ-33→OQ-33b
-- `.opencode/context/esprit.md` — added known-bugs warning banner
-- `.opencode/context/progress.md` — this update
+- **Scan pipeline refactoring — CustomEvaluator + shared helpers** (2026-08-01, **committed `a0ac064`**, not pushed; doc v2.2, OQ-34) — Replaced the ad-hoc `ComputeTimeRatio` boolean flag with a `CustomEvaluator` std::function on `ScanTestDef`. Any future custom scan test now requires only a ~15-line lambda rather than a new boolean flag + inline scope. Per-peak mode extracted into `runPerPeakTest()` private method. Three shared helpers (`buildPointConfig`, `resolveEstimator`, `runExperimentSafe`) eliminate duplicated config/estimator/runner logic across all three code paths. `run()` reduced from ~610 to ~307 lines. Test 8 (Compute Time Ratio) reimplemented as a `CustomEval` lambda that runs `ExperimentRunner` twice per point (with/without interference) and returns the ratio.
 
 ### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
@@ -563,13 +522,14 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v2.1**, ~1633 lines). Updated through: ...v2.0 ESPRIT extreme optimization analysis — cross-file audit of esprit-1/2/3.md, corrected Unitary ESPRIT flow (OQ-33), implementation NOT yet refactored. **v2.1 (2026-07-31) — ESPRIT optimization implementation: found two critical bugs in esprit.md (Q-transform block formula produces block-diagonal T_X corrupting signal subspace; K₂ index formulas contradictory between §5.3/§6.2). Abandoned Unitary ESPRIT pipeline.** Replaced with standard ESPRIT + FB averaging + adaptive L on real covariance. Retained optimizations: all-real arithmetic, adaptive L, normal-equation LS, skip Vandermonde. Current implementation may be OK (OQ-33b).
+- `.opencode/context/development_solution.md` — authoritative plan (**v2.2**, ~1660 lines). Updated through: ...**v2.2 (2026-08-01) — scan pipeline refactoring**: replaced `ComputeTimeRatio` boolean flag with `CustomEvaluator` std::function; extracted `runPerPeakTest()` private method; extracted shared helpers (`buildPointConfig`/`resolveEstimator`/`runExperimentSafe`). `run()` reduced from ~610 to ~307 lines (OQ-34).
 - `.opencode/context/progress.md` — this file
 - `.opencode/context/esprit-1.md` — ESPRIT analysis agent #1 (aggressive L reduction; **has model-order error: r=K**)
 - `.opencode/context/esprit-2.md` — ESPRIT analysis agent #2 (conservative L=N/2; **has K₁ formula error and internal freq-filtering violation**)
 - `.opencode/context/esprit-3.md` — ESPRIT analysis agent #3 (correct model order r=2K; square-root SVD preferred)
 - `.opencode/context/esprit-comparison.md` — cross-file audit and error diagnosis of esprit-1/2/3.md (written 2026-07-31)
 - `.opencode/context/esprit.md` — **final deliverable**: corrected Unitary ESPRIT implementation guide (written 2026-07-31, v2.0)
-- `.tmp/sessions/2026-07-30-scan-test-i18n-rework/context.md` — stale session from scan rework (safe to delete; committed)
-- `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)
-- `.tmp/sessions/2026-07-31-esprit-opt-refactor/context.md` — fresh session from ESPRIT optimization refactor (safe to delete; committed in working tree)
+- `.tmp/sessions/2026-07-30-scan-test-i18n-rework/context.md` — stale (committed in `98d6e30`; safe to delete)
+- `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale (M1 complete in `7875d71`; safe to delete)
+- `.tmp/sessions/2026-07-31-esprit-opt-refactor/context.md` — stale (committed in `d61c75c`; safe to delete)
+- `.tmp/sessions/2026-07-31-scan-pipeline-refactor/context.md` — session for this refactoring (committed in `a0ac064`; can delete after verification)

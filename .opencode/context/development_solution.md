@@ -2,10 +2,10 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v2.1 |
+| 文档版本 | v2.2 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-31（ESPRIT 优化实施：发现 esprit.md 的 Q 变换块公式无效（生成块对角矩阵破坏信号子空间），放弃 Unitary ESPRIT 管线；改用标准 ESPRIT + FB 平均 + 自适应 L，实现已验证。见 progress.md OQ-33b） |
-| 状态 | 已实施（v2.1：标准 ESPRIT + FB 平均 + 自适应 L，方括号中的 Q 变换 + K₁/K₂ 管线因 bug 已放弃） |
+| 最近修订 | 2026-08-01（扫描管线重构：提取 `runPerPeakTest()` 私有方法 + 共享工具；引入 `CustomEvaluator` 替代 `ComputeTimeRatio` 标志，消除 `run()` 中约 260 行重复的特殊分支代码。总行数 977→869。见 progress.md OQ-34） |
+| 状态 | 已实施（v2.2：标准 ESPRIT + FB 平均 + 自适应 L；扫描管线重构已完成） |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
 ---
@@ -1068,6 +1068,23 @@ struct ScanDimension {
     std::vector<std::string> Labels; // 离散参数的类别标签（平行于 Values）
 };
 
+```cpp
+/// Custom evaluator that replaces the standard ExperimentRunner →
+/// metric-extraction pipeline for a single scan point.
+///
+/// Receives the fully-built ExperimentConfig (may be modified), the
+/// resolved IEstimator, and the metric names list. Returns exactly
+/// MetricNames.size() values in the same order. The standard
+/// chart-building loop handles chart creation, titles, and progress.
+///
+/// Usage: set ScanTestDef::CustomEval and populate MetricNames;
+/// a ~100-line special-case scope collapses to a ~15-line lambda.
+/// Replaces the former ComputeTimeRatio boolean flag (OQ-34).
+using CustomEvaluator = std::function<std::vector<double>(
+    ExperimentConfig config,
+    const std::shared_ptr<IEstimator> &estimator,
+    const std::vector<std::string> &metric_names)>;
+
 /// 完整测试定义。
 struct ScanTestDef {
     std::string Name;
@@ -1089,6 +1106,11 @@ struct ScanTestDef {
     /// MC=1，从 LastPeaks 计算每个峰的 |freq−true|/true×100%，按误差
     /// 升序排列，每个排位画一条 MULTI_LINE 折线（OQ-28）。
     bool PerPeak = false;
+
+    /// 若已设置，替代标准 ExperimentRunner + metric 提取流水线。
+    /// 典型用途：ComputeTimeRatio（需两次实验取比值）等自定义逻辑。
+    /// 取代原先的 ComputeTimeRatio 布尔标志（OQ-34）。
+    CustomEvaluator CustomEval;
 };
 
 /// 单个系列的统计数据（平行于 XDim.Values）。
@@ -1212,8 +1234,9 @@ run():
 | 5 | SNR × SampleCount | SNR: −30~20 step 2.5 (21pts) | SampleCount: 64,128,256,512 | Algorithm: Interpolate,MUSIC,ESPRIT(3) | — | PE | MultiLine | 3 |
 | 6 | Window × Algorithm | Algorithm: Interpolate,MUSIC,ESPRIT(3) | WindowKind(4) | SNR: −3,10 dB(2) | — | PE | GroupedBarsWithError | 2 |
 | 7 | Interference scan | DeltaBins: 0~4 step 0.2 (21pts) | — | Algorithm(4) | — | PerPeak | MultiLine | 4 |
+| 8 | Compute Time Ratio | Algorithm(4) | SampleCount: 128,1024(2) | — | — | — | GroupedBarsWithError | 1 |
 
-**总计 14 张图表。**（v1.7 为 23 张；Tests 1/2/4 由每算法一张折线带误差图合并为单张多线图，Test 5 由 1 张增为 3 张，Test 6 由 1 张增为 2 张。）
+**总计 15 张图表。**（v1.7 为 23 张；v1.8 rework → 14 张；v1.9 新增 Test 8 自定义比值测试 → 15 张。）
 
 **缩写**：PE = PercentageError, CT = ComputeTime, SR = SampleRateHz, PerPeak = 逐峰百分比误差模式（MC=1，按距真频排序，每排位一条折线）
 
@@ -1254,7 +1277,16 @@ run():
 - 每个排位画一条折线（图例 `Peak %d`，UI 线程本地化为"峰 N"），排位不足的 X 点用 NaN 断线
 - 样式：MULTI_LINE（仅均值，无误差带）
 
----
+**Test 8 — Compute Time Ratio（新，v1.9；v2.2 重构为 CustomEval lambda）**
+- 自定义比值测试（`CustomEval` lambda 替代标准 ExperimentRunner + metric 提取），**无内置评价指标**
+- 目的：度量干扰引入第二峰后各算法计算时间的变化。ESPIRIT 预期时间显著增加
+- X 轴 = 4 种算法（FFT Peak / FFT Interpolate / MUSIC / ESPRIT）
+- 系列 = 2 种采样数（N=128, 1024）；每系列柱体为纯均值，**无误差须**
+- 计算方式：对每组 (algo, sample_count)，分别运行无干扰（deltaBins=0，1 峰）
+  和有干扰（deltaBins=1 bin，amplitude=0.5，2 峰）各 1 次 MC（MC=1），
+  取 `CT_with_intfc / CT_without` 的比值
+- 样式：`GROUPED_BARS_WITH_ERROR`（但 Stds/Mins/Maxs 均为空 → 仅显示柱体，无误差须）
+- Y 轴："Compute Time Ratio"（已 i18n：`_UI` 查询本地化）---
 
 ## 8. UI 实现（完整实现）
 
@@ -1622,6 +1654,7 @@ endif()
 | OQ-31 | 扫描图表留白与尺寸（v1.8） | 全部扫描图表 X/Y 双侧各留 5% 数据范围：`ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` 包裹 `render()`（`ApplyFit` 每侧增 `(range/2)×pad`，故 0.1→每侧 5%）；作用域仅扫描面板。`plotSize()` 返回 `availableWidth − fontSize×2.5` 收窄绘图区，避免最右 X 刻度标签被子容器边框遮挡。移除 GroupedBars 原硬编码 `SetupAxisLimits(±0.6)`，改由自动拟合+FitPadding 统一处理 |
 | OQ-32 | metric 身份键重构——去除 worker 线程 gettext（v1.9） | `IMetric::name()` 改为返回英语 msgid 字面量（locale 无关的身份键，兼作 gettext 翻译键），不再调用 `_UI()`。结果显示层在 UI 线程经 `_UI(name())` 本地化（原 `_UI(name())` 由"无操作双重翻译"变为正确单次翻译）。扫描测试 metric 匹配由 `name() == _UI(metric_name)` 改为 `name() == metric_name`（英语==英语），并移除 `scan_test_runner.cpp` 的 `i18n.h`。`experiment_runner` 本就不调用 `name()`/gettext。结果：worker 线程（scan/experiment runner + metric evaluate/finalize）**零** `_UI`/dgettext；`src/metrics/` 仅余 `relative_efficiency::format()` 的 `_UI("N/A")`（UI 线程）。附带安全收益：`name()` 的 `string_view` 由指向 gettext 静态缓冲区改为指向永久字面量存储。四条 metric 名 msgid 改为手工维护（xgettext 不再自动提取）。本变更落实了旧 Lesson 21 当年未真正实施的"预防性修复" |
 | OQ-33b | ESPRIT 优化实施结果（v2.1，取代 OQ-33） | 基于 esprit.md 的实施发现两处关键缺陷（独立 LLM 会话交叉验证）：(a) Q 变换块公式（§3 Step 3）产生块对角 T_X，使特征向量只能看到一半信号结构；(b) K₂ 索引公式在 §5.3 与 §6.2 矛盾，§6.2 版本产生线性相关的 K₂Es 行。**放弃 Unitary ESPRIT 的 Q 变换 + K₁/K₂ 管线**，改为在 FB 平均实协方差上使用标准 ESPRIT 选择矩阵。保留的优化：全实数运算、L 自适应（K=1→N/4）、正规方程 LS、跳过 Vandermonde。回退的优化：ComplexEigenSolver（仅 r×r，开销可忽略）、单位圆可靠性检验（替代 Haardt 虚部检验）。当前实现可能 OK。实现参考 `src/estimator/esprit.cpp`。 |
+| OQ-34 | 扫描管线重构（v2.2） | `ScanTestRunner::run()` 中含有两个独立的内联特殊分支（per-peak ~145 行、compute-time-ratio ~113 行），重复了配置构建、估计器解析和执行逻辑。重构方案：(1) 引入 `CustomEvaluator std::function`，取代 `ComputeTimeRatio` 布尔标志——自定义测试只需写 lambda，无须新增代码分支；(2) 提取 `runPerPeakTest()` 私有方法，复用三个共享 helper（`buildPointConfig`/`resolveEstimator`/`runExperimentSafe`）。`run()` 主体从 ~610 行降至 ~307 行，共享 helper 同时被 per-peak 和标准支路调用。 |
 
 ---
 
