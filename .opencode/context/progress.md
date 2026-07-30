@@ -5,15 +5,22 @@
 ## Project
 
 **ISPPracticeOne** — C++20 signal frequency estimation simulation framework (MSYS2 UCRT64).
-Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.6).
+Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.8).
 ## Current Status
 
-### Commits (local, NOT pushed)
+### Commits (pushed to `origin/main`; HEAD = `a065e9f`)
 
 | Hash | Message |
 |---|---|
+| `a065e9f` | docs: add README and LICENSE |
+| `778af51` | ✨ feat(scan): add per-peak error visualization for interference scan |
 | `89a11e9` | 🐛 fix(ui): resolve LogPanel ring buffer OOB read causing SIGSEGV |
 | `7c400f5` | ✨ feat(scan): implement batch scan test runner and results panel |
+| `4213ba0` | ✨ feat(estimator): implement ESPRIT algorithm via Hankel matrix |
+| `cf67ad0` | ✨ feat(estimator): implement beam-space MUSIC algorithm |
+| `eb91c76` | fix(deps): fix Eigen dep in CMakeLists.txt |
+| `568de70` | 🔥 fix(metrics): disable RelativeEfficiency metric in Runner and UI |
+| `b6c7efc` | ✨ feat(metrics): add Prominence, MSE, and relative efficiency |
 | `f9f800d` | ♻️ refactor(signal): remove amplitude parameter, fix to 1.0 |
 | `ad94f78` | 🐛 fix(ui): auto-refit spectrum axes on new experiment data |
 | `a73421b` | fix(ui): fix double shutdown() error |
@@ -21,6 +28,7 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 | `f422992` | ✨ feat(i18n): wrap UI strings in _UI() and add zh_CN translation |
 | `de01c29` | feat(i18n): add GNU gettext dep and i18n support |
 | `3622839` | build(cmake): link all deps statically |
+| `297f5c5` | chore(context): save progress |
 | `05d18bb` | build(cmake): refine build options |
 | `388e990` | ♻️ refactor(core): extract peak-finding into reusable PeakFinder utility |
 | `4d7fa6a` | fix(fft_interpolate): fix formula error |
@@ -38,9 +46,12 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
 | `7875d71` | ✨ feat(framework): add M1 skeleton with complete MonteCarlo runner |
 | `e2a8ab9` | chore(clang-tidy): refine .clang-tidy |
 | `1293107` | build(deps): add library Eigen |
-| `be7fb28` | chore(agent): add AGENTS.md and development_solution.md |
+| `be7fb28` | chore(agent): add AGENTS.md and development_plan.md |
+| `fa95d3c` | feat(test): add peak search to test_fft |
+| `982b5ec` | feat(test): add test_implot and set up clang tools |
+| `d41ec19` | feat: add test_fft and deps |
 
-All commits are local on `main`. **Not pushed** — user explicitly said "never git-push".
+All committed work is **pushed** to `origin/main` (branches in sync; the earlier "never git-push" instruction was superseded). `HEAD = a065e9f`. **This session's work (2026-07-30) is uncommitted** — see "Working tree" below.
 
 ### Milestone Progress
 
@@ -49,7 +60,7 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
 | M1 | Core types + Signal/Window skeleton + MonteCarlo complete | ✅ Done (`7875d71`) |
 | M2 | FFT estimators + core/fft + rng + signal + window + metrics | ✅ Done (multiple commits) |
 | M3 | MUSIC/ESPRIT | ✅ Done — both implemented by user (beam-space MUSIC + Hankel ESPRIT via Eigen) |
-| M4 | (merged into M2) Metrics + Statistics; **Batch Scan Tests** | ✅ Metrics/Stats done; ✅ Scan tests fully implemented and crash-free (7 tests / 23+ charts). LogPanel OOB fixed (`89a11e9`) |
+| M4 | (merged into M2) Metrics + Statistics; **Batch Scan Tests** | ✅ Metrics/Stats done; ✅ Scan tests fully implemented and crash-free (7 tests / **14 charts** after v1.8 rework; was 23). LogPanel OOB fixed (`89a11e9`) |
 | M5 | UI complete + main.cpp | ✅ Done (`bf920b2`) |
 | M6 | End-to-end smoke test | ✅ Done — user verified all 4 algorithms |
 
@@ -63,30 +74,23 @@ All commits are local on `main`. **Not pushed** — user explicitly said "never 
   1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18)
   2. `RmseMetric` → `MseMetric`: files renamed; `format()` no sqrt; max-Prominence peak selection (OQ-19+21)
   3. `RelativeEfficiencyMetric` added but **disabled** — model assumptions don't match CRB conditions; code retained but not wired (OQ-20)
-- **Batch scan test architecture** (implemented, doc v1.6→v1.7 OQ-22~28) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (23 charts total). New `ScanResultsPanel` with resizable ImPlot windows. Test 7 (Interference scan) uses special `PerPeak` mode: extracts all detected peaks per X-point, sorts by error distance, plots each rank as a separate series. LogPanel ring buffer OOB fixed (`89a11e9`).
+- **Batch scan test architecture** (implemented, doc v1.6→v1.7 OQ-22~28) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (originally 23 charts). New `ScanResultsPanel` with resizable ImPlot windows. Test 7 (Interference scan) uses special `PerPeak` mode: extracts all detected peaks per X-point, sorts by error distance, plots each rank as a separate series. LogPanel ring buffer OOB fixed (`89a11e9`).
+- **Scan test rework + panel i18n + chart polish** (2026-07-30 session, **uncommitted**, doc v1.7→v1.8 OQ-29~31) — three changes:
+  1. **Test spec rework (OQ-29)**: Tests 1/2/4 → Algorithm as *series* (4 lines) + MULTI_LINE (drop error bands); Test 1 keeps both metrics (2 charts), Tests 2/4 = 1 each; Test 4 drops `GenerateOverview`. Test 5 → `ChartDim=Algorithm{Interpolate,MUSIC,ESPRIT}` (3 charts; adds MUSIC/ESPRIT). Test 6 → `ChartDim=SNR{−3,10 dB}` (2 charts; adds 10 dB), and fixed X-axis algo set to Interpolate/MUSIC/ESPRIT. Tests 3/7 unchanged. **Total 23→14 charts.** Consequence: `LineWithErrorBands` (Style A) is now unreferenced by any test (dead render path, retained).
+  2. **Full scan-panel i18n (OQ-30)**: `ChartResult` gained atomic title fields `TestName`/`ChartDimLabel`/`IsOverview`; `SeriesResult` gained `PeakRank`. Worker stores English msgids only (no `_UI()` in `scan_test_runner.cpp` beyond the pre-existing metric-matching line); UI thread localizes via `localizedTitle()` / `localizedSeriesLabel()` (`"Peak %d"` → snprintf → "峰 N") / `_UI()`. Tick-label arrays materialized into `std::vector<std::string>` first to dodge the dgettext static-buffer aliasing trap. 19 new msgids added to `ui.po`/`ui.pot` (zh_CN). **Lesson 21 corrected**: metric `name()` actually returns `_UI(...)` (localized) and IS called on the worker thread — the "preventive fix" described in old Lesson 21 was never applied to the metric classes.
+  3. **Chart padding + width (OQ-31)**: `ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` around `render()` → 5% padding each side both axes (verified via `ApplyFit`: each side += `(range/2)×pad`); scoped to scan panel only. `plotSize()` narrows plot width by `fontSize×2.5` so the rightmost X label clears the child border. Removed the hardcoded grouped-bars `SetupAxisLimits(±0.6)`.
 
 ### Working tree
 
-**Committed** (`7c400f5`) — batch scan test architecture (13 files, code + docs):
-- `src/experiment/scan_test_runner.cpp` + `include/ispp/experiment/scan_test_runner.h` — multi-dimension scan runner (7 tests, 3 chart styles)
-- `src/ui/panels/scan_results_panel.cpp` + `include/ispp/ui/panels/scan_results_panel.h` — ImPlot results panel
-- `src/ui/ui_manager.cpp` + `include/ispp/ui/ui_manager.h` — background scan thread, progress polling, result handoff
-- `src/ui/panels/config_panel.cpp` + `include/ispp/ui/panels/config_panel.h` — "Run Scan Tests" button + scan state
-- `CMakeLists.txt` — scan sources registered
-- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — i18n catalog updates
-- `.opencode/context/development_solution.md` — v1.6 scan architecture docs
-- `.opencode/context/progress.md` — this file
+**HEAD** = `a065e9f`, **pushed** (`origin/main` in sync). Everything through `a065e9f` is committed; the older "Working tree" entries (`7c400f5` scan architecture, `89a11e9` LogPanel OOB, test-7 PerPeak) are all long since in HEAD.
 
-**Committed** (`89a11e9`) — LogPanel ring buffer OOB fix (2 files):
-- `src/ui/panels/log_panel.cpp` — ring buffer render uses `NextIdx % MAX_LOG`; messages copied into `RenderCopy` under lock before rendering
-- `include/ispp/ui/panels/log_panel.h` — added `RenderCopy` member vector
+**Uncommitted (staged), 2026-07-30 session** — scan test rework + panel i18n + chart polish (5 files; full detail in the "Scan test rework..." bullet under Milestone Progress):
+- `include/ispp/experiment/scan_test_runner.h` — `ChartResult` +atomic title fields (`TestName`/`ChartDimLabel`/`IsOverview`); `SeriesResult` +`PeakRank`.
+- `src/experiment/scan_test_runner.cpp` — tests 1/2/4/5/6 reworked; atomic title fields populated in all 3 chart-construction paths (normal/per-peak/overview); metric-matching line kept as `name() == _UI(metric_name)` (localized==localized).
+- `src/ui/panels/scan_results_panel.cpp` — full i18n (`_UI()` everywhere; helpers `localizedTitle`/`localizedSeriesLabel`/`makeLocalizedLabelPtrs`/`plotSize`); `FitPadding` push/pop; narrowed plot width; removed hardcoded grouped-bars X limits.
+- `locales/pot/ui.pot` + `locales/zh_CN/ui.po` — +19 msgids with zh_CN translations (**84 translated**, was 65).
 
-**Uncommitted (unstaged)** — test 7 PerPeak mode:
-- `include/ispp/experiment/scan_test_runner.h` — added `bool PerPeak` field to `ScanTestDef`
-- `src/experiment/scan_test_runner.cpp` — test 7 uses PerPeak path (MC=1, per-peak error extraction, sorted by rank, MULTI_LINE); `<algorithm>` + `<limits>` includes
-
-**Submodule (uncommitted)**:
-- `third_party/imgui` — `imconfig.h` `ImDrawIdx unsigned int` (32-bit indices for 23-chart rendering safety)
+**Submodule**: `third_party/imgui` `imconfig.h` (`ImDrawIdx unsigned int`, 32-bit indices) — flagged in prior sessions as a local tweak; **verify `git submodule status` before any commit** of this session's work.
 
 ### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
@@ -495,9 +499,35 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 
 **Mistake**: `IMetric::name()` implementations wrapped their return string in `_UI()` (→ `dgettext("ui", ...)`). The scan test worker thread called `metric->name()` during metric matching. GNU gettext's `dgettext` is not guaranteed thread-safe. Although this turned out **not** to be the root cause of the crash (the real cause was Lesson 20), it is still a correctness hazard.
 
-**Resolution**: `name()` returns a stable English msgid literal (no `_UI()`). The UI display layer translates on the main thread via `_UI(metric->name().data())`. The worker thread compares against English msgids directly — zero `dgettext` calls off the main thread. (This fix was applied during debugging and kept as a preventive measure.)
+**Resolution (as written 2026-07)**: `name()` returns a stable English msgid literal (no `_UI()`). The UI display layer translates on the main thread via `_UI(metric->name().data())`. The worker thread compares against English msgids directly — zero `dgettext` calls off the main thread. (This fix was applied during debugging and kept as a preventive measure.)
 
-**Lesson**: Any function callable from a background thread must NEVER call `dgettext`/`gettext`/`_UI()`. i18n is a display-only concern — do it on the UI thread at render time. Stable English msgids serve as locale-independent comparison keys.
+> ⚠️ **CORRECTION (2026-07-30, verified against code)**: The above Resolution was **never actually applied to the metric classes**. All four `IMetric::name()` implementations still `return _UI(...)` (localized) — `compute_time.cpp:14`, `percentage_error.cpp:27`, `mse.cpp:25`, `relative_efficiency.cpp:24`. So `name()` IS called on the worker thread (during scan metric matching) and DOES call `dgettext`. This is a pre-existing, accepted-in-practice hazard (no crash observed; the real Lesson-20 crash was the ring buffer). Consequence: scan metric matching MUST compare localized==localized (`name() == _UI(metric_name)`) to stay locale-independent — see Lesson 22. Fully removing worker-thread gettext requires giving metrics a locale-independent `id()` (separate task).
+
+**Lesson**: Any function callable from a background thread must NEVER call `dgettext`/`gettext`/`_UI()`. i18n is a display-only concern — do it on the UI thread at render time. Stable English msgids serve as locale-independent comparison keys. *(Caveat — see the correction above + Lesson 22: in this codebase the metric classes still violate this and it's accepted in practice. Verify reality, don't trust this file blindly.)*
+
+### 22. Verify docs/lessons against actual code — old Lesson 21 was inaccurate (2026-07-30)
+
+**Mistake**: While i18n'ing the scan panel, I trusted old Lesson 21's claim that `IMetric::name()` "returns a stable English msgid literal (no `_UI()`)" and diagnosed the scan metric-matching line `name() == _UI(metric_name)` as a "bug" (English `name()` vs localized `_UI()`). I "fixed" it to `name() == metric_name` (English==English). **That fix would have broken metric matching in zh_CN** — `name()` actually returns `_UI(...)` (localized), so the original localized==localized comparison was correct.
+
+**Resolution**: Reverted to `name() == _UI(metric_name)` before it could ship; corrected Lesson 21 with a ⚠️ note; recorded as OQ-30.
+
+**Lesson**: **Context/progress docs can be stale or aspirational.** Before acting on a claimed code state ("X returns English", "Y was fixed"), open the actual source and verify. A lesson's "Resolution" describes *intent*, not necessarily *reality* — especially for "preventive" fixes that may never have landed. When a fix rests on an assumption about existing behavior, verify that assumption first.
+
+### 23. `replaceAll` can match code you just wrote — verify after every pass (2026-07-30)
+
+**Mistake**: Used `replaceAll` to change every `_UI(s.Name.c_str())` → `localizedSeriesLabel(s).c_str()` in `scan_results_panel.cpp`. The pattern also matched the `return _UI(s.Name.c_str());` fallback **inside the newly-added `localizedSeriesLabel` helper itself**, turning it into infinite recursion. A follow-up edit (fixing an unrelated clang-tidy warning) then left a stray duplicate `return …; }` at namespace scope, breaking the file's brace structure.
+
+**Resolution**: The build failed immediately (`ninja: subcommand failed`) and clang-tidy flagged the brace cascade; I located and removed the stray lines. No broken code reached a "done" state.
+
+**Lesson**: `replaceAll` is global within the file — it matches occurrences inside helpers you added in the same pass, not just the intended call sites. After any `replaceAll`: (a) re-read the affected region; (b) lean on the build + clang-tidy gate, which catches the collateral instantly. When the replacement token also appears inside a helper that consumes it, prefer per-function scoped edits over `replaceAll`.
+
+### 24. ImPlot `FitPadding` semantics — derive from source, not the doc blurb (2026-07-30)
+
+**Risk avoided**: ImPlot's `FitPadding` doc says "ImVec2(0.1,0.1) adds 10% to the fit extents" — ambiguous (10% per side? 10% total?). The requirement was "5% each side".
+
+**Resolution**: Read `ImPlotAxis::ApplyFit` in `implot_internal.h`: `FitExtents.Min/Max -= / += (FitExtents.Size()*0.5) * padding` — i.e. each side grows by `(range/2) * padding`. So padding=0.1 → each side += 5% of range. Confirmed `0.1` = exactly "5% each side" (and matches the doc's "+10% total").
+
+**Lesson**: For library APIs with unit/percentage semantics, the one-line doc comment is often ambiguous. When a requirement is quantified ("5% each side"), open the implementation and derive the exact input rather than guessing from the prose. Same family as Lessons 11 & 22: **trust the source over the summary.**
 
 ## Build & Validation Commands
 
@@ -525,6 +555,7 @@ cmake --build build
 
 ## Session Context Files
 
-- `.opencode/context/development_solution.md` — authoritative plan (**v1.7**, ~1560 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25); v1.7 LogPanel ring buffer fix (OQ-27) + Test 7 PerPeak mode (OQ-28).
+- `.opencode/context/development_solution.md` — authoritative plan (**v1.8**, ~1620 lines). Updated through: v1.1 PeakFinder; v1.2 metrics revision; v1.3 UI fixes; v1.4 amplitude removal; v1.5 Prominence + MSE + RelativeEfficiency (OQ-18~21); v1.6 batch scan test architecture (§7.5~§7.6 ScanTestRunner, §8.8 ScanResultsPanel, OQ-22~25); v1.7 LogPanel ring buffer fix (OQ-27) + Test 7 PerPeak mode (OQ-28); **v1.8 scan test spec rework (§7.7, 14 charts) + scan-panel full i18n + chart FitPadding/width (OQ-29~31)**.
 - `.opencode/context/progress.md` — this file
+- `.tmp/sessions/2026-07-30-scan-test-i18n-rework/context.md` — current session context (scan rework + i18n + chart polish)
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale session from M1 (safe to delete; M1 is complete)

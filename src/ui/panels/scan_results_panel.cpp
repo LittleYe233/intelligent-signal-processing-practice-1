@@ -1,5 +1,7 @@
 #include "ispp/ui/panels/scan_results_panel.h"
+#include "ispp/i18n.h"
 #include <array>
+#include <cstdio>
 #include <imgui.h>
 #include <implot.h>
 #include <string>
@@ -36,15 +38,6 @@ static ImU32 makeBandColor(const ImVec4 &color, float whiteness) {
         static_cast<int>((color.w * ONE_MINUS_W + whiteness) * 255.0f));
 }
 
-// //
-// ---------------------------------------------------------------------------
-// // 判断 Y 轴是否为百分比误差（需要对数标尺）—— 待删除功能
-// //
-// ---------------------------------------------------------------------------
-// static bool isPercentageMetric(const std::string &y_label) {
-//     return y_label.find("Percentage Error") != std::string::npos;
-// }
-
 // ---------------------------------------------------------------------------
 // 离散 X 轴时生成等间距索引 {0, 1, 2, ..., n-1}
 // ---------------------------------------------------------------------------
@@ -57,20 +50,93 @@ static std::vector<double> makeDiscreteIndices(std::size_t n) {
 }
 
 // ---------------------------------------------------------------------------
+// 标题本地化：从原子 msgid 分量组合显示标题（仅 UI 线程调用 _UI）。
+// chart.Title 仍为英文组合串，仅用作稳定 ImGui/ImPlot ID。
+// ---------------------------------------------------------------------------
+static std::string localizedTitle(const ChartResult &chart) {
+    std::string t = _UI(chart.TestName.c_str());
+    t += " — ";
+    t += _UI(chart.YLabel.c_str());
+    if (!chart.ChartDimLabel.empty()) {
+        t += " [";
+        t += _UI(chart.ChartDimLabel.c_str());
+        t += "]";
+    }
+    if (chart.IsOverview) {
+        t += " (";
+        t += _UI("overview");
+        t += ")";
+    }
+    return t;
+}
+
+// ---------------------------------------------------------------------------
+// 将类别标签本地化为稳定的 std::string 存储。
+// 注意：dgettext 返回指向内部静态缓冲区的指针，下一次调用会覆盖，
+// 故必须先物化为 std::vector<std::string> 再取 .c_str()。
+// ---------------------------------------------------------------------------
+static std::vector<const char *>
+makeLocalizedLabelPtrs(const std::vector<std::string> &labels,
+                       std::vector<std::string> &storage) {
+    storage.clear();
+    storage.reserve(labels.size());
+    for (const auto &lbl : labels) {
+        storage.emplace_back(_UI(lbl.c_str()));
+    }
+    std::vector<const char *> ptrs;
+    ptrs.reserve(storage.size());
+    for (const auto &lbl : storage) {
+        ptrs.push_back(lbl.c_str());
+    }
+    return ptrs;
+}
+
+// ---------------------------------------------------------------------------
+// 系列图例标签本地化。
+// 逐峰系列（PeakRank > 0）用翻译后的 "Peak %d" 格式生成；其余系列直接翻译
+// s.Name。格式串经 _UI() 即时传入 snprintf（gettext
+// 静态缓冲区即时消费，安全）。
+// ---------------------------------------------------------------------------
+static std::string localizedSeriesLabel(const SeriesResult &s) {
+    if (s.PeakRank > 0) {
+        constexpr std::size_t BUF_SIZE = 32;
+        std::array<char, BUF_SIZE> buf{};
+        std::snprintf(buf.data(), BUF_SIZE, _UI("Peak %d"), s.PeakRank);
+        return buf.data();
+    }
+    return _UI(s.Name.c_str());
+}
+
+// ---------------------------------------------------------------------------
+// 图表尺寸：宽度留出右侧余量，避免最右侧 X 轴刻度标签被子容器边框遮挡；
+// 高度填满。余量按字号缩放以适配 DPI / 字体放缩。
+// ---------------------------------------------------------------------------
+static ImVec2 plotSize() {
+    constexpr float MIN_PLOT_WIDTH = 100.0f;
+    const float MARGIN = ImGui::GetFontSize() * 2.0f;
+    const float WIDTH = ImGui::GetContentRegionAvail().x - MARGIN;
+    return {WIDTH > MIN_PLOT_WIDTH ? WIDTH : MIN_PLOT_WIDTH, -1.0f};
+}
+
+// ---------------------------------------------------------------------------
 // 公共接口
 // ---------------------------------------------------------------------------
 void ScanResultsPanel::render(const std::vector<ScanTestOutput> &results) {
-    if (!ImGui::Begin("Scan Test Results")) {
+    if (!ImGui::Begin(_UI("Scan Test Results"))) {
         ImGui::End();
         return;
     }
 
     if (results.empty()) {
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                           "No scan results — run scan tests first.");
+                           _UI("No scan results — run scan tests first."));
         ImGui::End();
         return;
     }
+
+    // 各轴自动拟合时两侧各留 5% 余量（FitPadding=0.1 → 每侧 5% 数据范围）。
+    // 仅作用于扫描结果面板，不影响频谱面板。
+    ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1f, 0.1f));
 
     int global_chart_idx = 0;
     for (const auto &test_out : results) {
@@ -80,6 +146,7 @@ void ScanResultsPanel::render(const std::vector<ScanTestOutput> &results) {
         }
     }
 
+    ImPlot::PopStyleVar();
     ImGui::End();
 }
 
@@ -90,6 +157,7 @@ void ScanResultsPanel::renderChart(const ChartResult &chart, int chart_idx) {
     // 子容器高度 = 绘图高度 400 + 边框(2) + 内边距余量，避免缺像素触发滚动条
     const float CHILD_HEIGHT = 820.0f;
 
+    // chart.Title 为英文组合串，用作稳定唯一的子窗口 ID（不受 locale 影响）。
     ImGui::BeginChild(chart.Title.c_str(), ImVec2(0, CHILD_HEIGHT),
                       ImGuiChildFlags_ResizeY);
 
@@ -123,23 +191,17 @@ void ScanResultsPanel::renderLineWithErrorBands(const ChartResult &chart,
                             : std::vector<double>{};
     const double *x_data = DISCRETE ? PLOT_X.data() : chart.XValues.data();
 
-    if (ImPlot::BeginPlot(chart.Title.c_str(), ImVec2(-1, -1))) {
-        ImPlot::SetupAxis(ImAxis_X1, chart.XLabel.c_str());
-
-        // 百分比误差使用对数量标（非分贝）—— 待删除功能
-        // if (isPercentageMetric(chart.YLabel)) {
-        //     ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
-        // }
-        ImPlot::SetupAxis(ImAxis_Y1, chart.YLabel.c_str());
+    const std::string TITLE = localizedTitle(chart);
+    if (ImPlot::BeginPlot(TITLE.c_str(), plotSize())) {
+        ImPlot::SetupAxis(ImAxis_X1, _UI(chart.XLabel.c_str()));
+        ImPlot::SetupAxis(ImAxis_Y1, _UI(chart.YLabel.c_str()));
 
         // 离散时使用类别标签（在等间距索引位置）
+        std::vector<std::string> label_storage;
         if (DISCRETE && !chart.XLabels.empty()) {
-            std::vector<const char *> c_labels;
-            c_labels.reserve(chart.XLabels.size());
-            for (const auto &lbl : chart.XLabels) {
-                c_labels.push_back(lbl.c_str());
-            }
-            ImPlot::SetupAxisTicks(ImAxis_X1, x_data, N, c_labels.data());
+            const auto C_LABELS =
+                makeLocalizedLabelPtrs(chart.XLabels, label_storage);
+            ImPlot::SetupAxisTicks(ImAxis_X1, x_data, N, C_LABELS.data());
         }
 
         for (std::size_t si = 0; si < chart.Series.size(); ++si) {
@@ -168,7 +230,7 @@ void ScanResultsPanel::renderLineWithErrorBands(const ChartResult &chart,
             // min~max 浅色带（只有第一组系列显示图例，避免重复）
             if (HAS_DIST && !s.Mins.empty() && !s.Maxs.empty()) {
                 const char *band_label =
-                    FIRST_SERIES ? "min\u2013max range" : "##minmax";
+                    FIRST_SERIES ? _UI("min–max range") : "##minmax";
                 ImPlot::PlotShaded(
                     band_label, x_data, s.Mins.data(), s.Maxs.data(), N,
                     {ImPlotProp_FillColor, makeBandColor(COLOR_F, 0.80f)});
@@ -177,7 +239,7 @@ void ScanResultsPanel::renderLineWithErrorBands(const ChartResult &chart,
             // ±std 中色带（只有第一组系列显示图例）
             if (HAS_DIST) {
                 const char *std_label =
-                    FIRST_SERIES ? "mean \u00B1 \u03C3" : "##stdband";
+                    FIRST_SERIES ? _UI("mean ± σ") : "##stdband";
                 ImPlot::PlotShaded(
                     std_label, x_data, mean_minus_std.data(),
                     mean_plus_std.data(), N,
@@ -186,7 +248,7 @@ void ScanResultsPanel::renderLineWithErrorBands(const ChartResult &chart,
 
             // 均值粗线（最上层，纯色，每组的系列名作为图例）
             ImPlot::PlotLine(
-                s.Name.c_str(), x_data, s.Means.data(), N,
+                localizedSeriesLabel(s).c_str(), x_data, s.Means.data(), N,
                 {ImPlotProp_LineColor, COLOR, ImPlotProp_LineWeight, 2.0f});
         }
 
@@ -219,27 +281,20 @@ void ScanResultsPanel::renderGroupedBarsWithError(const ChartResult &chart,
     const double TOTAL_BAR_SPAN = GROUP_SPAN * (1.0 - GAP_FRAC);
     const double BAR_WIDTH = TOTAL_BAR_SPAN / static_cast<double>(SERIES_N + 1);
 
-    if (ImPlot::BeginPlot(chart.Title.c_str(), ImVec2(-1, -1))) {
-        ImPlot::SetupAxis(ImAxis_X1, chart.XLabel.c_str());
-
-        // 百分比误差使用对数量标（非分贝）—— 待删除功能
-        // if (isPercentageMetric(chart.YLabel)) {
-        //     ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
-        // }
-        ImPlot::SetupAxis(ImAxis_Y1, chart.YLabel.c_str());
+    const std::string TITLE = localizedTitle(chart);
+    if (ImPlot::BeginPlot(TITLE.c_str(), plotSize())) {
+        ImPlot::SetupAxis(ImAxis_X1, _UI(chart.XLabel.c_str()));
+        ImPlot::SetupAxis(ImAxis_Y1, _UI(chart.YLabel.c_str()));
 
         // 离散类别标签
+        std::vector<std::string> label_storage;
         if (DISCRETE && !chart.XLabels.empty()) {
-            std::vector<const char *> c_labels;
-            c_labels.reserve(chart.XLabels.size());
-            for (const auto &lbl : chart.XLabels) {
-                c_labels.push_back(lbl.c_str());
-            }
+            const auto C_LABELS =
+                makeLocalizedLabelPtrs(chart.XLabels, label_storage);
             ImPlot::SetupAxisTicks(ImAxis_X1, group_centers, N,
-                                   c_labels.data());
+                                   C_LABELS.data());
         }
-        ImPlot::SetupAxisLimits(ImAxis_X1, group_centers[0] - 0.6,
-                                group_centers[N - 1] + 0.6, ImPlotCond_Once);
+        // X 轴范围交由自动拟合 + FitPadding(0.1) 统一处理（每侧 5% 余量）。
 
         for (int si = 0; si < SERIES_N; ++si) {
             const auto SI = static_cast<std::size_t>(si);
@@ -260,8 +315,9 @@ void ScanResultsPanel::renderGroupedBarsWithError(const ChartResult &chart,
             const auto COLOR = getSeriesColorU32(si);
 
             // 柱体
-            ImPlot::PlotBars(s.Name.c_str(), bar_centers.data(), s.Means.data(),
-                             N, BAR_WIDTH, {ImPlotProp_FillColor, COLOR});
+            ImPlot::PlotBars(localizedSeriesLabel(s).c_str(),
+                             bar_centers.data(), s.Means.data(), N, BAR_WIDTH,
+                             {ImPlotProp_FillColor, COLOR});
 
             // 误差须（min~max 不对称误差）
             if (!s.Mins.empty() && !s.Maxs.empty()) {
@@ -294,23 +350,17 @@ void ScanResultsPanel::renderMultiLine(const ChartResult &chart,
                             : std::vector<double>{};
     const double *x_data = DISCRETE ? PLOT_X.data() : chart.XValues.data();
 
-    if (ImPlot::BeginPlot(chart.Title.c_str(), ImVec2(-1, -1))) {
-        ImPlot::SetupAxis(ImAxis_X1, chart.XLabel.c_str());
-
-        // 百分比误差使用对数量标（非分贝）
-        // if (isPercentageMetric(chart.YLabel)) {
-        //     ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
-        // }
-        ImPlot::SetupAxis(ImAxis_Y1, chart.YLabel.c_str());
+    const std::string TITLE = localizedTitle(chart);
+    if (ImPlot::BeginPlot(TITLE.c_str(), plotSize())) {
+        ImPlot::SetupAxis(ImAxis_X1, _UI(chart.XLabel.c_str()));
+        ImPlot::SetupAxis(ImAxis_Y1, _UI(chart.YLabel.c_str()));
 
         // 离散时使用类别标签
+        std::vector<std::string> label_storage;
         if (DISCRETE && !chart.XLabels.empty()) {
-            std::vector<const char *> c_labels;
-            c_labels.reserve(chart.XLabels.size());
-            for (const auto &lbl : chart.XLabels) {
-                c_labels.push_back(lbl.c_str());
-            }
-            ImPlot::SetupAxisTicks(ImAxis_X1, x_data, N, c_labels.data());
+            const auto C_LABELS =
+                makeLocalizedLabelPtrs(chart.XLabels, label_storage);
+            ImPlot::SetupAxisTicks(ImAxis_X1, x_data, N, C_LABELS.data());
         }
 
         // 不同系列用不同标记类型区分
@@ -327,10 +377,10 @@ void ScanResultsPanel::renderMultiLine(const ChartResult &chart,
             const auto MARKER =
                 MARKERS[static_cast<std::size_t>(si) % MARKERS.size()];
 
-            ImPlot::PlotLine(s.Name.c_str(), x_data, s.Means.data(), N,
-                             {ImPlotProp_LineColor, COLOR,
-                              ImPlotProp_LineWeight, 1.5f, ImPlotProp_Marker,
-                              MARKER, ImPlotProp_MarkerSize, 4.0f});
+            ImPlot::PlotLine(
+                localizedSeriesLabel(s).c_str(), x_data, s.Means.data(), N,
+                {ImPlotProp_LineColor, COLOR, ImPlotProp_LineWeight, 1.5f,
+                 ImPlotProp_Marker, MARKER, ImPlotProp_MarkerSize, 4.0f});
         }
 
         ImPlot::EndPlot();

@@ -1,14 +1,10 @@
 #ifndef ISPP_EXPERIMENT_SCAN_TEST_RUNNER_H
 #define ISPP_EXPERIMENT_SCAN_TEST_RUNNER_H
 
-#include "ispp/core/parameters.h"
 #include "ispp/estimator/estimator.h"
 #include "ispp/experiment/experiment_config.h"
-#include "ispp/experiment/statistics.h"
 #include "ispp/metrics/metric.h"
-
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -109,6 +105,11 @@ struct SeriesResult {
     std::vector<double> Stds; // 空 = metric 无分布统计
     std::vector<double> Mins;
     std::vector<double> Maxs;
+
+    // 逐峰模式（test 7）的峰排位（1-based）；< 0 表示非逐峰系列。
+    // UI 线程据此用翻译后的 "Peak %d" 格式生成本地化图例（worker 线程
+    // 不调用 _UI()，故无法在生成期本地化）。
+    int PeakRank = -1;
 };
 
 struct ChartResult {
@@ -120,6 +121,14 @@ struct ChartResult {
     std::vector<std::string> XLabels; // 离散时使用
     bool IsDiscrete = false;
     std::vector<SeriesResult> Series;
+
+    // i18n 原子标题分量（OQ-i18n）：worker 线程存英语 msgid 字面量，
+    // UI 线程据此组合本地化标题。详见 ScanResultsPanel::localizedTitle()。
+    // Title 仍保留英文组合串，用作 ImGui/ImPlot 稳定唯一 ID。
+    std::string TestName; // 测试名 msgid（如 "SNR scan"）
+    std::string
+        ChartDimLabel; // 分图维度标签 msgid（如 "FFT Peak"）；无分图时为空
+    bool IsOverview = false; // 是否为总览图（组合各 ChartDim 均值）
 };
 
 struct ScanTestOutput {

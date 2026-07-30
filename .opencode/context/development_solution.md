@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.7 |
+| 文档版本 | v1.8 |
 | 制定日期 | 2026-07-19 |
-| 最近修订 | 2026-07-24（LogPanel 环形缓冲区越界修复 OQ-27；Test 7 逐峰模式 OQ-28） |
+| 最近修订 | 2026-07-30（扫描测试规格重构 + 扫描面板完整 i18n + 图表留白/边距 OQ-29~31） |
 | 状态 | 已确认，待实施 |
 | 适用代码库 | `ISPPracticeOne`（C++20 / MSYS2 UCRT64） |
 
@@ -1162,54 +1162,61 @@ run():
 
 ## 7.7 具体测试定义（硬编码于 `buildDefaultTests()`）
 
-> 全局默认参数见 §7.5.1。下表中"覆盖"列仅列出与默认值不同的常量。
-> 未列出的参数均继承默认值。
+> 全局默认参数见 §7.5.1。下表反映 **v1.8 重构后** 的规格（OQ-29）。
+> 重构要点：Tests 1/2/4 由"分图=算法"改为"系列=算法 + MULTI_LINE"（4 算法
+> 同图 4 线，仅均值，无误差带）；Test 5 增补 MUSIC/ESPRIT 两张分图；
+> Test 6 的 SNR 由固定覆盖改为分图维度（−3 dB / 10 dB）。
+> 后果：`LineWithErrorBands`（Style A）已无任何测试引用（见 §8.8）。
 
 | # | 名称 | X 轴 | 系列变量 | 分图变量 | 覆盖 | Metric | 样式 | 图表数 |
 |---|---|---|---|---|---|---|---|---|
-| 1 | SampleCount scan | SampleCount: 32, 64, 128, 256, 512, 1024 | — | Algorithm(4) | — | PE, CT | LineWithErrorBands | 8 |
-| 2 | Frequency scan | Freq: 1500~1530 step 3 (11pts) | — | Algorithm(4) | SR=7680 | PE | LineWithErrorBands | 4 |
+| 1 | SampleCount scan | SampleCount: 32, 64, 128, 256, 512, 1024 | Algorithm(4) | — | — | PE, CT | MultiLine | 2 |
+| 2 | Frequency scan | Freq: 1500~1530 step 3 (11pts) | Algorithm(4) | — | SR=7680 | PE | MultiLine | 1 |
 | 3 | NoiseDist × Algorithm | NoiseDist(4) | Algorithm(4) | — | SNR=−8 | PE | GroupedBarsWithError | 1 |
-| 4 | SNR scan | SNR: −30~20 step 2.5 (21pts) | — | Algorithm(4) | — | PE | LineWithErrorBands | 4 |
-| 5 | SNR × SampleCount | SNR: −30~20 step 2.5 (21pts) | SampleCount: 64,128,256,512 | — | Est=Interpolate | PE | MultiLine | 1 |
-| 6 | Window × Algorithm | Algorithm: FFT Peak, ESPRIT (2) | WindowKind(4) | — | SNR=−3 | PE | GroupedBarsWithError | 1 |
+| 4 | SNR scan | SNR: −30~20 step 2.5 (21pts) | Algorithm(4) | — | — | PE | MultiLine | 1 |
+| 5 | SNR × SampleCount | SNR: −30~20 step 2.5 (21pts) | SampleCount: 64,128,256,512 | Algorithm: Interpolate,MUSIC,ESPRIT(3) | — | PE | MultiLine | 3 |
+| 6 | Window × Algorithm | Algorithm: Interpolate,MUSIC,ESPRIT(3) | WindowKind(4) | SNR: −3,10 dB(2) | — | PE | GroupedBarsWithError | 2 |
 | 7 | Interference scan | DeltaBins: 0~4 step 0.2 (21pts) | — | Algorithm(4) | — | PerPeak | MultiLine | 4 |
 
-**总计 23 张图表。**
+**总计 14 张图表。**（v1.7 为 23 张；Tests 1/2/4 由每算法一张折线带误差图合并为单张多线图，Test 5 由 1 张增为 3 张，Test 6 由 1 张增为 2 张。）
 
-**缩写**：PE = PercentageError, CT = ComputeTime, SR = SampleRateHz, Est = Estimator, PerPeak = 逐峰百分比误差模式（MC=1，按距真频排序，每排位一条折线）
+**缩写**：PE = PercentageError, CT = ComputeTime, SR = SampleRateHz, PerPeak = 逐峰百分比误差模式（MC=1，按距真频排序，每排位一条折线）
 
 ### 各测试详细规格
 
-**Test 1 — SampleCount scan**
-- 默认配置 + 无覆盖；逐个算法 × 逐个 metric 生成独立图表
-- 每图 6 个 X 轴点（32/64/128/256/512/1024），折线 + 误差带
+**Test 1 — SampleCount scan（v1.8：algo 作系列，MULTI_LINE）**
+- 默认配置 + 无覆盖；4 种算法作为 4 条系列线同图对比（仅均值）
+- 每个 metric 一张图（PE、CT）→ 共 2 张 MULTI_LINE 图
+- X 轴 6 个点（32/64/128/256/512/1024）
 
-**Test 2 — Frequency scan**
+**Test 2 — Frequency scan（v1.8：algo 作系列，MULTI_LINE）**
 - 覆盖 `SampleRateHz = 7680`（确保 Nyquist 覆盖 1530 Hz）
-- X 轴 11 点（1500/1503/.../1530 Hz），仅 PE
+- 4 种算法作 4 条系列线；X 轴 11 点（1500/1503/.../1530 Hz），仅 PE → 1 张图
 
-**Test 3 — NoiseDist × Algorithm**
+**Test 3 — NoiseDist × Algorithm**（未改动）
 - 覆盖 `SNR = −8 dB`；X 轴 = 4 种噪声分布；系列 = 4 种算法（同图 4 色）
 - 柱状分组：每组 4 根柱（算法），柱高 = PE 均值，误差须 = min~max
 
-**Test 4 — SNR scan**
-- 默认配置；X 轴 21 点（−30~−27.5~...~20 dB）；仅 PE
+**Test 4 — SNR scan（v1.8：algo 作系列，MULTI_LINE；移除 GenerateOverview）**
+- 默认配置；4 种算法作 4 条系列线；X 轴 21 点（−30~...~20 dB），仅 PE → 1 张图
+- 不再生成总览图（原 v1.7 的 overview 等价于现单张多线图，已冗余）
 
-**Test 5 — SNR × SampleCount**
-- 覆盖 `Estimator = FFT Interpolate`；X 轴 = SNR(21 点)，系列 = 4 种采样数
-- 仅均值，4 条折线（不同线型），无误差带
+**Test 5 — SNR × SampleCount（v1.8：按算法分图，新增 MUSIC/ESPRIT）**
+- 分图 = Algorithm {FFT Interpolate, MUSIC, ESPRIT}（排除 FFT Peak）→ 3 张图
+- 每图系列 = 4 种采样数（N=64/128/256/512）；X 轴 = SNR(21 点)，仅 PE
+- `FixedEstimator` 不再使用（Algorithm 升为 ChartDim）
 
-**Test 6 — Window × Algorithm**
-- 覆盖 `SNR = −3 dB`；X 轴 = 2 种算法（FFT Peak / ESPRIT），系列 = 4 种窗
-- 柱状分组：每组 4 根柱（窗类型），柱高 = PE 均值，误差须 = min~max
+**Test 6 — Window × Algorithm（v1.8：按 SNR 分图，新增 10 dB）**
+- 分图 = SNR {−3 dB, 10 dB} → 2 张图；X 轴 = 3 种算法（Interpolate/MUSIC/ESPRIT）
+- 系列 = 4 种窗函数；柱状分组，柱高 = PE 均值，误差须 = min~max
+- SNR 不再是固定覆盖，改为 ChartDim
 
-**Test 7 — Interference scan（PerPeak 模式, OQ-28）**
+**Test 7 — Interference scan（PerPeak 模式, OQ-28；未改动）**
 - 默认配置；X 轴 21 点（0~0.2~...~4.0 bins）；4 种算法各一张图
 - `PerPeak = true`：MC=1（确定性单次运行），跳过标准 metric 管线
 - 从 `RunResult::LastPeaks` 提取所有峰，计算各自的 `|freq − true| / true × 100%`
 - 每个 X 点的峰按误差升序排列（rank 0 = 最接近真频）
-- 每个排位画一条折线（Peak 1, Peak 2, …），排位不足的 X 点用 NaN 断线
+- 每个排位画一条折线（图例 `Peak %d`，UI 线程本地化为"峰 N"），排位不足的 X 点用 NaN 断线
 - 样式：MULTI_LINE（仅均值，无误差带）
 
 ---
@@ -1361,17 +1368,30 @@ while (!glfwWindowShouldClose(window)):
 ### 8.8 扫描测试结果面板（ImPlot）— M4
 
 **布局**：与频谱面板（§8.4）一致——每张图表各自包裹在
-`ImGui::BeginChild(..., ImGuiChildFlags_ResizeY)` 容器中，从上到下
-依次排列，用户可垂直拖拽调整各图高度。
+`ImGui::BeginChild(..., ImGuiChildFlags_ResizeY)` 容器中（ID = 英文组合
+`chart.Title`，不受 locale 影响），从上到下依次排列，用户可垂直拖拽调整各图高度。
 
-**空状态**：无扫描结果时显示灰色提示文本 `"No scan results — run scan tests first."`。
+**空状态**：无扫描结果时显示灰色提示文本（已 i18n：`_UI("No scan results — run scan tests first.")`）。
+
+**完整 i18n（OQ-30）**：所有可见文本均在 **UI 线程** 经 `_UI()` 本地化——
+worker 线程（`ScanTestRunner::run()`）只存英语 msgid 字面量，绝不调用 `_UI()`。
+- `chart.Title` 为英文组合串（"TestName — YLabel [ChartDimLabel]"），仅作
+  ImGui/ImPlot 稳定唯一 ID；显示标题由 `localizedTitle()` 从原子分量
+  `TestName`/`YLabel`/`ChartDimLabel`/`IsOverview` 重新组合（这些字段为
+  `ChartResult` 在 v1.8 新增）。
+- 轴标签 / 图例 / 刻度类别经 `_UI()` 即时翻译；刻度标签数组先物化进
+  `std::vector<std::string>`（`makeLocalizedLabelPtrs`）再取 `.c_str()`，规避
+  dgettext 静态缓冲区被下一次调用覆盖的陷阱。
+- 逐峰图例 `Peak %d` 为运行期拼接串，gettext 无法整体匹配；改为在
+  `SeriesResult` 上携带 `PeakRank`，UI 线程用 `localizedSeriesLabel()` 以
+  翻译后的 `"Peak %d"` 格式（`snprintf`）生成（如 zh_CN → "峰 N"）。
 
 **三种图表样式渲染逻辑**（OQ-24）：
 
-#### Style A: LineWithErrorBands（折线 + 误差带）
+#### Style A: LineWithErrorBands（折线 + 误差带）—— ⚠️ v1.8 后无测试引用
 
-用于单系列、X 轴连续或离散，metric 有完整分布统计（Tests 1/2/4/7）。
-每个分图变量值 + metric 组合 → 一张独立图表。
+> v1.8 重构后 Tests 1/2/4 全部改为 MULTI_LINE，**没有任何测试再选用此样式**。
+> 渲染代码（`renderLineWithErrorBands`）保留以备未来使用，但当前为死路径。
 
 ```text
 // 三层叠加，从后往前画（浅色在后）
@@ -1397,19 +1417,30 @@ for each series idx:
 SetupAxisTicks(X1, groupCenters, groupLabels)
 ```
 
+> v1.8：移除原先硬编码的 `SetupAxisLimits(X1, center0−0.6, centerN−1+0.6)`，
+> X 轴范围交由自动拟合 + FitPadding 统一处理（见下）。
+
 #### Style C: MultiLine（多折线，均值）
 
-用于多系列连续 X 轴，仅对比均值（Test 5）。不同系列用不同 ImPlot 线型。
+用于多系列场景，仅对比均值。**v1.8 后覆盖 Tests 1/2/4/5/7**（不同系列用不同
+颜色 + 标记类型区分；算法系列=4 条线，采样数系列=4 条线，逐峰排位=N 条线）。
 
 ```text
 for each series idx:
-    ImPlot::SetNextLineStyle(color, thickness, styleIdx) // 实线/虚线/点线/点划线
+    ImPlot::SetNextLineStyle(color, thickness, styleIdx) // 颜色 + 标记
     PlotLine(seriesName, xs, means, n)
-// 图例自动显示系列名称（如 "N=64", "N=128", ...）
+// 图例自动显示系列名称（经 localizedSeriesLabel 本地化）
 ```
 
-> **Y 轴自动适配**：所有样式均使用 `ImPlotCond_Once`（首次适配后保留
-> 用户缩放），与频谱面板（§8.4 OQ-15）相同的策略。
+**图表留白与尺寸（OQ-31，v1.8 新增）**：
+- **5% 双侧留白**：`render()` 在绘制所有图表前后 `ImPlot::PushStyleVar(
+  ImPlotStyleVar_FitPadding, ImVec2(0.1f, 0.1f))` / `PopStyleVar()`。
+  ImPlot `ApplyFit` 对每侧增加 `(range/2)×padding`，故 `0.1` → 每侧 5%
+  数据范围（X/Y 均适用）。作用域仅扫描面板，不影响频谱面板。
+- **图表宽度收窄**：`plotSize()` 返回 `availableWidth − fontSize×2.5`，为最
+  右侧 X 轴刻度标签留出空间，避免被子容器右边框遮挡（按字号缩放以适配 DPI）。
+- **轴适配策略**：除上述 FitPadding 外，沿用默认自动拟合（首帧拟合 +
+  FitPadding，之后保留用户缩放），与频谱面板（§8.4 OQ-15）一致。
 
 ---
 
@@ -1551,6 +1582,9 @@ endif()
 | OQ-26 | 扫描维度角色（X 轴 / 系列 / 分图） | 每条 `ScanDimension` 有三种角色：**XDim**（必选，图表横轴）；**SeriesDim**（可选，同图多色/多线型系列）；**ChartDim**（可选，每个取值生成独立图表）。Algorithm 作为特殊维度，由 `ALL_ALGORITHMS` 注册表解析为 `IEstimator`。若 Algorithm 不是 ChartDim/SeriesDim，则使用 `FixedEstimator` |
 | OQ-27 | LogPanel 环形缓冲区越界 | `NextIdx` 无限递增（总写入计数），`render()` 以 `NextIdx` 为上界遍历 `Messages`。缓冲区回绕后（`NextIdx ≥ MAX_LOG`）循环越过 `Messages.size()` → 主线程 SIGSEGV。修复：回绕时用 `NextIdx % MAX_LOG` 分两段渲染；同时在锁内复制到 `RenderCopy` 向量再渲染，防止工作线程覆写导致悬垂 `c_str()` 指针 |
 | OQ-28 | Test 7 逐峰百分比误差 | `PerPeak = true` 跳过标准 metric 管线。MC=1 确定性运行，从 `LastPeaks` 提取所有峰并计算各自百分比误差，按误差升序排列。每个排位（Peak 1 = 最接近真频）画一条 MULTI_LINE 折线；排位不足处用 NaN 断线。适用于可视化干扰导致的频率分裂 |
+| OQ-29 | 扫描测试规格重构（v1.8） | Tests 1/2/4：Algorithm 由 ChartDim 改为 SeriesDim（4 算法同图 4 线）+ 样式改 MULTI_LINE（仅均值，弃用误差带）；Test 1 保留双 metric（PE+CT=2 图），Test 2/4 各 1 图；Test 4 移除 GenerateOverview（单张多线已等价）。Test 5：FixedEstimator→ChartDim=Algorithm{Interpolate,MUSIC,ESPRIT}（新增 MUSIC/ESPRIT 两图，排除 FFT Peak）=3 图。Test 6：SNR 由 Override(−3)→ChartDim{−3,10 dB}（新增 10 dB 一图）=2 图，并修正 X 轴算法集为 Interpolate/MUSIC/ESPRIT（原 v1.7 文档误标 FFT Peak/ESPRIT）。Tests 3/7 不变。总计 23→14 图。后果：Style A（LineWithErrorBands）不再被任何测试引用（见 §8.8） |
+| OQ-30 | 扫描面板完整 i18n（v1.8） | `ChartResult` 新增原子标题分量 `TestName`/`ChartDimLabel`/`IsOverview`；`SeriesResult` 新增 `PeakRank`。worker 线程只存英语 msgid（标题英文组合串仅作稳定 ID），UI 线程经 `localizedTitle()`/`localizedSeriesLabel()`/`_UI()` 本地化显示。`Peak %d` 经翻译后 `snprintf` 生成（zh_CN→"峰 N"）。⚠️ 既有事实修正：`IMetric::name()` 各实现实际 `return _UI(...)`（本地化串，在 worker 线程被调用），与旧 progress.md Lesson 21 描述不符；扫描测试 metric 匹配沿用 `name() == _UI(metric_name)`（本地化==本地化，locale 无关）。彻底去除 worker 线程 gettext 需重构 metric 类（独立任务） |
+| OQ-31 | 扫描图表留白与尺寸（v1.8） | 全部扫描图表 X/Y 双侧各留 5% 数据范围：`ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1,0.1))` 包裹 `render()`（`ApplyFit` 每侧增 `(range/2)×pad`，故 0.1→每侧 5%）；作用域仅扫描面板。`plotSize()` 返回 `availableWidth − fontSize×2.5` 收窄绘图区，避免最右 X 刻度标签被子容器边框遮挡。移除 GroupedBars 原硬编码 `SetupAxisLimits(±0.6)`，改由自动拟合+FitPadding 统一处理 |
 
 ---
 

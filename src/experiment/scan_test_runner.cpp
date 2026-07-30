@@ -169,24 +169,24 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
     const auto ALGOS = getAllAlgorithms();
     std::vector<ScanTestDef> tests;
 
-    // ---- Test 1: SampleCount scan ----
+    // ---- Test 1: SampleCount scan (algo as series, MULTI_LINE) ----
     {
         ScanTestDef t;
         t.Name = "SampleCount scan";
         t.XDim = {.Param = ScanParam::SAMPLE_COUNT,
                   .Values = {32.0, 64.0, 128.0, 256.0, 512.0, 1024.0},
                   .Labels = {}};
-        t.ChartDim = ScanDimension{.Param = ScanParam::ALGORITHM,
-                                   .Values = {0.0, 1.0, 2.0, 3.0},
-                                   .Labels = {ALGOS[0].Name, ALGOS[1].Name,
-                                              ALGOS[2].Name, ALGOS[3].Name}};
+        t.SeriesDim = ScanDimension{.Param = ScanParam::ALGORITHM,
+                                    .Values = {0.0, 1.0, 2.0, 3.0},
+                                    .Labels = {ALGOS[0].Name, ALGOS[1].Name,
+                                               ALGOS[2].Name, ALGOS[3].Name}};
         t.MetricNames = {"Percentage Error", "Compute Time"};
-        t.Style = ChartStyle::LINE_WITH_ERROR_BANDS;
+        t.Style = ChartStyle::MULTI_LINE;
         t.FixedEstimator = nullptr;
         tests.push_back(std::move(t));
     }
 
-    // ---- Test 2: Frequency scan ----
+    // ---- Test 2: Frequency scan (algo as series, MULTI_LINE) ----
     {
         ScanTestDef t;
         t.Name = "Frequency scan";
@@ -198,12 +198,12 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
         t.XDim = {.Param = ScanParam::FREQUENCY_HZ,
                   .Values = std::move(freq_vals),
                   .Labels = {}};
-        t.ChartDim = ScanDimension{.Param = ScanParam::ALGORITHM,
-                                   .Values = {0.0, 1.0, 2.0, 3.0},
-                                   .Labels = {ALGOS[0].Name, ALGOS[1].Name,
-                                              ALGOS[2].Name, ALGOS[3].Name}};
+        t.SeriesDim = ScanDimension{.Param = ScanParam::ALGORITHM,
+                                    .Values = {0.0, 1.0, 2.0, 3.0},
+                                    .Labels = {ALGOS[0].Name, ALGOS[1].Name,
+                                               ALGOS[2].Name, ALGOS[3].Name}};
         t.MetricNames = {"Percentage Error"};
-        t.Style = ChartStyle::LINE_WITH_ERROR_BANDS;
+        t.Style = ChartStyle::MULTI_LINE;
         t.Overrides.emplace_back(ScanParam::SAMPLE_RATE_HZ, 7680.0);
         // 重命名键以避免歧义；applyScanParam 处理 SampleRateHz
         tests.push_back(std::move(t));
@@ -231,7 +231,7 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
         tests.push_back(std::move(t));
     }
 
-    // ---- Test 4: SNR scan ----
+    // ---- Test 4: SNR scan (algo as series, MULTI_LINE) ----
     {
         ScanTestDef t;
         t.Name = "SNR scan";
@@ -243,18 +243,18 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
         t.XDim = {.Param = ScanParam::SNR_DB,
                   .Values = std::move(snr_vals),
                   .Labels = {}};
-        t.ChartDim = ScanDimension{.Param = ScanParam::ALGORITHM,
-                                   .Values = {0.0, 1.0, 2.0, 3.0},
-                                   .Labels = {ALGOS[0].Name, ALGOS[1].Name,
-                                              ALGOS[2].Name, ALGOS[3].Name}};
+        t.SeriesDim = ScanDimension{.Param = ScanParam::ALGORITHM,
+                                    .Values = {0.0, 1.0, 2.0, 3.0},
+                                    .Labels = {ALGOS[0].Name, ALGOS[1].Name,
+                                               ALGOS[2].Name, ALGOS[3].Name}};
         t.MetricNames = {"Percentage Error"};
-        t.Style = ChartStyle::LINE_WITH_ERROR_BANDS;
+        t.Style = ChartStyle::MULTI_LINE;
         t.FixedEstimator = nullptr;
-        t.GenerateOverview = true;
         tests.push_back(std::move(t));
     }
 
-    // ---- Test 5: SNR x SampleCount ----
+    // ---- Test 5: SNR x SampleCount (per-algorithm: Interpolate/MUSIC/ESPRIT)
+    // ----
     {
         ScanTestDef t;
         t.Name = "SNR x SampleCount";
@@ -266,16 +266,20 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
         t.XDim = {.Param = ScanParam::SNR_DB,
                   .Values = std::move(snr_vals),
                   .Labels = {}};
+        t.ChartDim = ScanDimension{
+            .Param = ScanParam::ALGORITHM,
+            .Values = {1.0, 2.0, 3.0},
+            .Labels = {ALGOS[1].Name, ALGOS[2].Name, ALGOS[3].Name}};
         t.SeriesDim = {.Param = ScanParam::SAMPLE_COUNT,
                        .Values = {64.0, 128.0, 256.0, 512.0},
                        .Labels = {}};
         t.MetricNames = {"Percentage Error"};
         t.Style = ChartStyle::MULTI_LINE;
-        t.FixedEstimator = std::make_shared<FftInterpolateEstimator>(0.0);
+        t.FixedEstimator = nullptr;
         tests.push_back(std::move(t));
     }
 
-    // ---- Test 6: Window x Algorithm ----
+    // ---- Test 6: Window x Algorithm (per-SNR: -3 dB and 10 dB) ----
     {
         ScanTestDef t;
         t.Name = "Window x Algorithm";
@@ -292,9 +296,11 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
                                      labelForWindow(WindowKind::HAMMING),
                                      labelForWindow(WindowKind::HANN),
                                      labelForWindow(WindowKind::BLACKMAN)}};
+        t.ChartDim = ScanDimension{.Param = ScanParam::SNR_DB,
+                                   .Values = {-3.0, 10.0},
+                                   .Labels = {"-3 dB", "10 dB"}};
         t.MetricNames = {"Percentage Error"};
         t.Style = ChartStyle::GROUPED_BARS_WITH_ERROR;
-        t.Overrides = {{ScanParam::SNR_DB, -3.0}};
         t.FixedEstimator = nullptr;
         tests.push_back(std::move(t));
     }
@@ -451,6 +457,7 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
                 // Build chart with one series per peak rank
                 ChartResult chart;
                 chart.Style = ChartStyle::MULTI_LINE;
+                chart.TestName = test.Name;
                 chart.YLabel = "Percentage Error";
                 chart.XValues = test.XDim.Values;
                 chart.IsDiscrete = isScanParamDiscrete(test.XDim.Param);
@@ -460,15 +467,21 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
                     chart.XLabel = "Delta [bins]";
                 }
 
-                std::string title = test.Name + " — Percentage Error";
+                // ChartDim 标签（原子 msgid，供 UI 线程本地化）
                 if (test.ChartDim) {
-                    std::string chart_label;
                     if (ci < test.ChartDim->Labels.size()) {
-                        chart_label = test.ChartDim->Labels[ci];
+                        chart.ChartDimLabel = test.ChartDim->Labels[ci];
                     } else {
-                        chart_label = std::to_string(CV);
+                        chart.ChartDimLabel = std::to_string(CV);
                     }
-                    title += " [" + chart_label + "]";
+                }
+
+                // 英文组合标题（仅作 ImGui/ImPlot 稳定唯一 ID；
+                // 显示标题由 UI 线程从 TestName/YLabel/ChartDimLabel
+                // 本地化组合）
+                std::string title = test.Name + " — Percentage Error";
+                if (!chart.ChartDimLabel.empty()) {
+                    title += " [" + chart.ChartDimLabel + "]";
                 }
                 chart.Title = title;
 
@@ -481,6 +494,8 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
                 for (std::size_t rank = 0; rank < max_rank; ++rank) {
                     SeriesResult sr;
                     sr.Name = "Peak " + std::to_string(rank + 1);
+                    // 标记逐峰排位，供 UI 线程用翻译后的 "Peak %d" 本地化。
+                    sr.PeakRank = static_cast<int>(rank + 1);
                     sr.Means.reserve(N);
                     for (std::size_t xi = 0; xi < N; ++xi) {
                         if (rank < ranked_errors[xi].size()) {
@@ -524,6 +539,16 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
         for (std::size_t ci = 0; ci < CHART_VALS.size(); ++ci) {
             const double CV = CHART_VALS[ci];
 
+            // ChartDim 标签（原子 msgid，本 ci 内所有 metric 图表共享）
+            std::string chart_dim_label;
+            if (test.ChartDim) {
+                if (ci < test.ChartDim->Labels.size()) {
+                    chart_dim_label = test.ChartDim->Labels[ci];
+                } else {
+                    chart_dim_label = std::to_string(CV);
+                }
+            }
+
             // Phase 1: 一次性创建所有 ChartResult（每个 metric 一张图）
             std::vector<ChartResult> metric_charts;
             metric_charts.reserve(N_METRICS);
@@ -551,16 +576,13 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
                     }
                 }
 
-                // 标题
+                // 标题（TestName/YLabel/ChartDimLabel 为原子 msgid；
+                // 英文 Title 仅作稳定 ID，显示标题由 UI 本地化组合）
+                chart.TestName = test.Name;
+                chart.ChartDimLabel = chart_dim_label;
                 std::string title = test.Name + " — " + metric_name;
-                if (test.ChartDim) {
-                    std::string chart_label;
-                    if (ci < test.ChartDim->Labels.size()) {
-                        chart_label = test.ChartDim->Labels[ci];
-                    } else {
-                        chart_label = std::to_string(CV);
-                    }
-                    title += " [" + chart_label + "]";
+                if (!chart_dim_label.empty()) {
+                    title += " [" + chart_dim_label + "]";
                 }
                 chart.Title = title;
 
@@ -706,6 +728,11 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
 
                         bool found = false;
                         for (const auto &mr : result.Metrics) {
+                            // 两侧均经 _UI()：metric::name() 现状即在 worker
+                            // 线程 经 _UI 返回本地化名，故这里同样本地化以实现
+                            // locale 无关的恒等匹配。(彻底去除 worker 线程
+                            // gettext 需重构 metric
+                            // 类，属独立任务；本改动不新增 worker 线程 _UI。)
                             if (mr.MetricObj->name() ==
                                 _UI(metric_name.c_str())) {
                                 series.Means.push_back(mr.Stats.Mean);
@@ -776,6 +803,8 @@ ScanTestRunner::run(const ProgressCallback &on_progress) {
 
                 ChartResult combined;
                 combined.Style = ChartStyle::MULTI_LINE;
+                combined.TestName = test.Name;
+                combined.IsOverview = true;
                 combined.YLabel = test.MetricNames[mi];
                 combined.Title =
                     test.Name + " — " + test.MetricNames[mi] + " (overview)";
