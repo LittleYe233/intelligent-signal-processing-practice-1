@@ -168,6 +168,9 @@ void ScanResultsPanel::renderChart(const ChartResult &chart, int chart_idx) {
     case ChartStyle::GROUPED_BARS_WITH_ERROR:
         renderGroupedBarsWithError(chart, chart_idx);
         break;
+    case ChartStyle::GROUPED_BARS:
+        renderGroupedBars(chart, chart_idx);
+        break;
     case ChartStyle::MULTI_LINE:
         renderMultiLine(chart, chart_idx);
         break;
@@ -330,6 +333,73 @@ void ScanResultsPanel::renderGroupedBarsWithError(const ChartResult &chart,
                     "##err", bar_centers.data(), s.Means.data(), neg_err.data(),
                     pos_err.data(), N, {ImPlotProp_LineColor, COLOR});
             }
+        }
+
+        ImPlot::EndPlot();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Style B2: GroupedBars (no error whiskers)
+// ---------------------------------------------------------------------------
+void ScanResultsPanel::renderGroupedBars(const ChartResult &chart,
+                                         int /*chart_idx*/) {
+    const int N = static_cast<int>(chart.XValues.size());
+    const int SERIES_N = static_cast<int>(chart.Series.size());
+
+    if (N == 0 || SERIES_N == 0)
+        return;
+
+    // 离散 X 轴：用等间距索引作为组中心
+    const bool DISCRETE = chart.IsDiscrete;
+    const auto GROUP_X = DISCRETE
+                             ? makeDiscreteIndices(static_cast<std::size_t>(N))
+                             : std::vector<double>{};
+    const double *group_centers =
+        DISCRETE ? GROUP_X.data() : chart.XValues.data();
+
+    // 计算柱宽度
+    const double GROUP_SPAN = 1.0;
+    const double GAP_FRAC = 0.15;
+    const double TOTAL_BAR_SPAN = GROUP_SPAN * (1.0 - GAP_FRAC);
+    const double BAR_WIDTH = TOTAL_BAR_SPAN / static_cast<double>(SERIES_N + 1);
+
+    const std::string TITLE = localizedTitle(chart);
+    if (ImPlot::BeginPlot(TITLE.c_str(), plotSize())) {
+        ImPlot::SetupAxis(ImAxis_X1, _UI(chart.XLabel.c_str()));
+        ImPlot::SetupAxis(ImAxis_Y1, _UI(chart.YLabel.c_str()));
+
+        // 离散类别标签
+        std::vector<std::string> label_storage;
+        if (DISCRETE && !chart.XLabels.empty()) {
+            const auto C_LABELS =
+                makeLocalizedLabelPtrs(chart.XLabels, label_storage);
+            ImPlot::SetupAxisTicks(ImAxis_X1, group_centers, N,
+                                   C_LABELS.data());
+        }
+
+        for (int si = 0; si < SERIES_N; ++si) {
+            const auto SI = static_cast<std::size_t>(si);
+            const auto &s = chart.Series[SI];
+            if (s.Means.empty())
+                continue;
+
+            // 计算每根柱的中心位置
+            const auto SZ = static_cast<std::size_t>(N);
+            std::vector<double> bar_centers(SZ);
+            for (std::size_t i = 0; i < SZ; ++i) {
+                double offset = (static_cast<double>(si) -
+                                 static_cast<double>(SERIES_N - 1) / 2.0) *
+                                BAR_WIDTH;
+                bar_centers[i] = group_centers[i] + offset;
+            }
+
+            const auto COLOR = getSeriesColorU32(si);
+
+            // 柱体（无误差须）
+            ImPlot::PlotBars(localizedSeriesLabel(s).c_str(),
+                             bar_centers.data(), s.Means.data(), N, BAR_WIDTH,
+                             {ImPlotProp_FillColor, COLOR});
         }
 
         ImPlot::EndPlot();

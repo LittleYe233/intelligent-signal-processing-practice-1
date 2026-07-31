@@ -15,9 +15,10 @@ public:
 private:
     void renderChart(const ChartResult &chart, int chart_idx);
 
-    // 三种图表样式渲染
+    // 四种图表样式渲染
     void renderLineWithErrorBands(const ChartResult &chart, int chart_idx);
     void renderGroupedBarsWithError(const ChartResult &chart, int chart_idx);
+    void renderGroupedBars(const ChartResult &chart, int chart_idx);
     void renderMultiLine(const ChartResult &chart, int chart_idx);
 };
 

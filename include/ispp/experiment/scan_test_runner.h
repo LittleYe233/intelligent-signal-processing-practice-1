@@ -56,6 +56,7 @@ extern const std::vector<AlgorithmEntry> ALL_ALGORITHMS;
 enum class ChartStyle : std::uint8_t {
     LINE_WITH_ERROR_BANDS,   // 折线 + 误差带（mean ± std, min~max bands）
     GROUPED_BARS_WITH_ERROR, // 分组柱状图 + 误差须
+    GROUPED_BARS,            // 分组柱状图（仅均值，无误差须）
     MULTI_LINE,              // 多折线（仅均值，不同线型）
 };
 

@@ -237,7 +237,7 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
                        labelForNoiseDist(NoiseDistribution::LAPLACIAN),
                        labelForNoiseDist(NoiseDistribution::IMPULSE)}};
         t.MetricNames = {"Percentage Error"};
-        t.Style = ChartStyle::GROUPED_BARS_WITH_ERROR;
+        t.Style = ChartStyle::GROUPED_BARS;
         t.Overrides = {{ScanParam::SNR_DB, -8.0}};
         t.FixedEstimator = nullptr;
         tests.push_back(std::move(t));
@@ -352,7 +352,7 @@ std::vector<ScanTestDef> ScanTestRunner::buildDefaultTests() {
                                     .Values = {128.0, 1024.0},
                                     .Labels = {}};
         t.MetricNames = {"Compute Time Ratio"};
-        t.Style = ChartStyle::GROUPED_BARS_WITH_ERROR;
+        t.Style = ChartStyle::GROUPED_BARS;
         t.FixedEstimator = nullptr;
         t.CustomEval = [](ExperimentConfig cfg,
                           const std::shared_ptr<IEstimator> &est,

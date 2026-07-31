@@ -8,17 +8,19 @@
 Authoritative plan: `.opencode/context/development_solution.md` (15 sections, milestones M1–M6, doc v1.9).
 ## Current Status
 
-### Commits (`origin/main` at `a065e9f`; local HEAD = `a0ac064`, NOT pushed — 7 commits ahead)
+### Commits (`origin/main` at `d61c75c`; local HEAD = `b05c790`, NOT pushed — 1 commit ahead; 4 modified files uncommitted = GROUPED_BARS work)
+
+> ⚠️ State correction (2026-08-01): previous save recorded local HEAD = `a0ac064` "7 commits ahead" — since then the user pushed 6 commits (`98d6e30`…`d61c75c`), and the scan-refactor commit hash changed `a0ac064` → `b05c790` (amend). Verify against `git rev-parse HEAD origin/main` — don't trust the table blindly (Lesson 22).
 
 | Hash | Message |
 |---|---|
-| `a0ac064` | ♻️ refactor(scan): replace ad-hoc special-case scopes with CustomEvaluator + shared helpers |
-| `d61c75c` | ♻️ refactor: implement standard ESPRIT with FB averaging and adaptive L |
+| `b05c790` | ♻️ refactor(scan): replace ad-hoc special-case scopes with CustomEvaluator + shared helpers (**NOT pushed**) |
+| `d61c75c` | ♻️ refactor: implement standard ESPRIT with FB averaging and adaptive L (origin/main) |
 | `c9df40f` | 📝 docs: add ESPRIT optimization analysis and corrected Unitary ESPRIT flow |
 | `49e32e9` | docs: update README and progress |
 | `d408f7b` | ♻️ refactor(metrics): make name() a locale-independent identity key |
 | `98d6e30` | ✨ feat(scan): rework test specs, localize panel, and pad charts |
-| `a065e9f` | docs: add README and LICENSE (origin/main) |
+| `a065e9f` | docs: add README and LICENSE (prior origin/main) |
 | `778af51` | ✨ feat(scan): add per-peak error visualization for interference scan |
 | `89a11e9` | 🐛 fix(ui): resolve LogPanel ring buffer OOB read causing SIGSEGV |
 | `7c400f5` | ✨ feat(scan): implement batch scan test runner and results panel |
@@ -45,7 +47,7 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
   1. `FrequencyPeak` gains `Prominence` field + `PROMINENCE_UNKNOWN` sentinel (OQ-18)
   2. `RmseMetric` → `MseMetric`: files renamed; `format()` no sqrt; max-Prominence peak selection (OQ-19+21)
   3. `RelativeEfficiencyMetric` added but **disabled** — model assumptions don't match CRB conditions; code retained but not wired (OQ-20)
-- **Batch scan test architecture** (implemented, doc v1.6→v1.7 OQ-22~28) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Three chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine). 7 concrete tests defined (originally 23 charts). New `ScanResultsPanel` with resizable ImPlot windows. Test 7 (Interference scan) uses special `PerPeak` mode: extracts all detected peaks per X-point, sorts by error distance, plots each rank as a separate series. LogPanel ring buffer OOB fixed (`89a11e9`).
+- **Batch scan test architecture** (implemented, doc v1.6→v1.7 OQ-22~28) — `ScanTestRunner` wraps `ExperimentRunner` to scan parameters across ranges. Three dimension roles (X-axis / series / chart-split). Chart styles (LineWithErrorBands / GroupedBarsWithError / MultiLine; **+ GroupedBars added 2026-08-01, see OQ-35 entry below**). 7 concrete tests defined (originally 23 charts). New `ScanResultsPanel` with resizable ImPlot windows. Test 7 (Interference scan) uses special `PerPeak` mode: extracts all detected peaks per X-point, sorts by error distance, plots each rank as a separate series. LogPanel ring buffer OOB fixed (`89a11e9`).
 - **Scan test rework + panel i18n + chart polish** (2026-07-30, **committed `98d6e30`, not pushed**; doc v1.7→v1.8 OQ-29~31) — three changes:
   1. **Test spec rework (OQ-29)**: Tests 1/2/4 → Algorithm as *series* (4 lines) + MULTI_LINE (drop error bands); Test 1 keeps both metrics (2 charts), Tests 2/4 = 1 each; Test 4 drops `GenerateOverview`. Test 5 → `ChartDim=Algorithm{Interpolate,MUSIC,ESPRIT}` (3 charts; adds MUSIC/ESPRIT). Test 6 → `ChartDim=SNR{−3,10 dB}` (2 charts; adds 10 dB), and fixed X-axis algo set to Interpolate/MUSIC/ESPRIT. Tests 3/7 unchanged. **Total 23→14 charts.** Consequence: `LineWithErrorBands` (Style A) is now unreferenced by any test (dead render path, retained).
   2. **Full scan-panel i18n (OQ-30)**: `ChartResult` gained atomic title fields `TestName`/`ChartDimLabel`/`IsOverview`; `SeriesResult` gained `PeakRank`. Worker stores English msgids only (no `_UI()` in `scan_test_runner.cpp` beyond the pre-existing metric-matching line); UI thread localizes via `localizedTitle()` / `localizedSeriesLabel()` (`"Peak %d"` → snprintf → "峰 N") / `_UI()`. Tick-label arrays materialized into `std::vector<std::string>` first to dodge the dgettext static-buffer aliasing trap. 19 new msgids added to `ui.po`/`ui.pot` (zh_CN). **Lesson 21 corrected**: metric `name()` actually returns `_UI(...)` (localized) and IS called on the worker thread — the "preventive fix" described in old Lesson 21 was never applied to the metric classes.
@@ -56,6 +58,7 @@ Authoritative plan: `.opencode/context/development_solution.md` (15 sections, mi
   2. **K₂ sparse index contradiction (§5.3 vs §6.2)**: Two contradictory formulas in the same document; §6.2 version creates linearly dependent rows in K₂Es
   Resolution: Abandoned the Q-transform + K₁/K₂ pipeline. Replaced with standard ESPRIT selection matrices on FB-averaged real covariance. Retained optimizations from the analysis: adaptive L (K=1→N/4), all-real arithmetic, normal-equation LS, skipping Vandermonde. The implementation may be OK at present — further optimization (Lanczos top-r EVD, Spectra) can be deferred.
 - **Scan pipeline refactoring — CustomEvaluator + shared helpers** (2026-08-01, **committed `a0ac064`**, not pushed; doc v2.2, OQ-34) — Replaced the ad-hoc `ComputeTimeRatio` boolean flag with a `CustomEvaluator` std::function on `ScanTestDef`. Any future custom scan test now requires only a ~15-line lambda rather than a new boolean flag + inline scope. Per-peak mode extracted into `runPerPeakTest()` private method. Three shared helpers (`buildPointConfig`, `resolveEstimator`, `runExperimentSafe`) eliminate duplicated config/estimator/runner logic across all three code paths. `run()` reduced from ~610 to ~307 lines. Test 8 (Compute Time Ratio) reimplemented as a `CustomEval` lambda that runs `ExperimentRunner` twice per point (with/without interference) and returns the ratio.
+- **GROUPED_BARS chart style (2026-08-01, 4 files modified, **NOT committed** — awaiting commit; doc update pending OQ-35)** — New `ChartStyle::GROUPED_BARS` = `GROUPED_BARS_WITH_ERROR` minus error whiskers (only mean bars). Changes: (1) enum entry in `scan_test_runner.h`; (2) `renderGroupedBars()` declaration in `scan_results_panel.h`; (3) implementation in `scan_results_panel.cpp` — copy of `renderGroupedBarsWithError()` without the `PlotErrorBars` block (~13 lines) + dispatch case in `renderChart()`; (4) Test 3 (NoiseDist × Algorithm) and Test 8 (Compute Time Ratio) switched to `GROUPED_BARS`; **Test 6 (Window × Algorithm) intentionally keeps `GROUPED_BARS_WITH_ERROR`**. Validated: clang-format ✅, build ✅ (5/5, no warnings), clang-tidy ✅ (4/4 files, no diagnostics). ⚠️ Lesson 25: the initial `replaceAll` on `t.Style = ChartStyle::GROUPED_BARS_WITH_ERROR;` also changed Test 6 and missed Test 8 (different preceding line) — both were fixed with targeted edits. Development_solution.md needs an OQ-35 entry (chart-style table §7.5.3 / §8.8 / OQ-24/29 mentions "three styles").
 
 ### Critical Bug Resolved: LogPanel Ring Buffer OOB (`89a11e9`)
 
@@ -496,6 +499,14 @@ A `STATIC` imgui still produces a dynamic exe unless you also pass `-static` at 
 
 **Lesson**: For library APIs with unit/percentage semantics, the one-line doc comment is often ambiguous. When a requirement is quantified ("5% each side"), open the implementation and derive the exact input rather than guessing from the prose. Same family as Lessons 11 & 22: **trust the source over the summary.**
 
+### 25. `replaceAll` over-matches legitimate duplicates — verify WHICH sites changed (2026-08-01)
+
+**Mistake**: Adding `ChartStyle::GROUPED_BARS`, I ran `replaceAll` on `t.Style = ChartStyle::GROUPED_BARS_WITH_ERROR;` → `GROUPED_BARS` in `scan_test_runner.cpp`, intending to change Tests 3 and 8 only. Three tests had that exact line (3, 6, 8), so `replaceAll` changed **all three** — including Test 6, which was supposed to keep error whiskers. Meanwhile Test 8's line did NOT match because its preceding line differed (`MetricNames = {"Compute Time Ratio"}` vs `{"Percentage Error"}`), so the edit *missed* the very test it was targeting. Both errors were caught by a follow-up `rg` verification and fixed with targeted edits (revert Test 6, change Test 8).
+
+**Resolution**: After any `replaceAll`, list every changed site (`rg -n <pattern> <file>`) and check each one against intent — don't assume "all occurrences" == "the ones I meant". For sparse targeted changes where only some sites should change, **prefer unique-context single edits over `replaceAll`** (match includes the preceding `MetricNames` line or similar distinguishing context).
+
+**Lesson**: `replaceAll` has two failure modes: (a) it hits *more* sites than intended (legitimate duplicates), and (b) it *misses* sites whose surrounding context differs from the match string. Related to Lesson 23 (replaceAll matched newly-written helper code) but distinct: Lesson 23 was about self-inflicted collateral, this one is about over/under-matching across pre-existing legitimate occurrences. Always verify the actual set of changed sites with `rg` after a bulk edit. The build + clang-tidy gate cannot catch a *wrong-but-valid* style choice (Test 6 with wrong style still compiles clean) — semantic verification requires reading the diff.
+
 ## Build & Validation Commands
 
 ```powershell
@@ -533,3 +544,4 @@ cmake --build build
 - `.tmp/sessions/2026-07-19-m1-core-signal-montecarlo/context.md` — stale (M1 complete in `7875d71`; safe to delete)
 - `.tmp/sessions/2026-07-31-esprit-opt-refactor/context.md` — stale (committed in `d61c75c`; safe to delete)
 - `.tmp/sessions/2026-07-31-scan-pipeline-refactor/context.md` — session for this refactoring (committed in `a0ac064`; can delete after verification)
+- `.tmp/sessions/2026-08-01-grouped-bars-style/context.md` — session for the GROUPED_BARS chart style (uncommitted; safe to delete after commit)
